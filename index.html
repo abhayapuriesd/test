@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Handwritten Consumer Number Extractor</title>
+
+  <!-- OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- Excel export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f4f6f8;
+      color: #222;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 24px auto;
+      padding: 20px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 18px rgba(0,0,0,.08);
+    }
+    h1 { margin-top: 0; font-size: 28px; }
+    .hint { color: #555; line-height: 1.5; }
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    input[type=file] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fff;
+    }
+    button {
+      border: 0;
+      padding: 11px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+      background: #1463ff;
+      color: #fff;
+    }
+    button.secondary { background: #444; }
+    button.success { background: #168a3a; }
+    button.warning { background: #b66b00; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .status {
+      margin-top: 12px;
+      padding: 11px;
+      border-radius: 8px;
+      background: #eef3ff;
+      white-space: pre-wrap;
+    }
+    .preview-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+    .preview {
+      max-width: 100%;
+      max-height: 650px;
+      display: block;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+    #canvas { width: 100%; border: 1px solid #ccc; border-radius: 8px; }
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 9px 10px;
+      text-align: left;
+    }
+    th { background: #f0f2f5; }
+    .mono { font-family: Consolas, monospace; }
+    .small { font-size: 13px; }
+    .danger { color: #a40000; }
+    @media (max-width: 800px) {
+      .preview-wrap { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="card">
+    <h1>Handwritten Consumer Number Extractor</h1>
+    <p class="hint">
+      Upload a photo containing handwritten numbers like <b>032-107018</b> or <b>032-81039</b>.
+      The tool extracts the 5/6 digit consumer part and converts it to a 12-digit number.
+      Example: <b>107018 → 032000107018</b> and <b>81039 → 032000081039</b>.
+    </p>
+
+    <input id="fileInput" type="file" accept="image/*" />
+    <div class="row" style="margin-top:12px;">
+      <button id="extractBtn" disabled>Extract Consumer Numbers</button>
+      <button id="copyBtn" class="secondary" disabled>Copy Numbers</button>
+      <button id="excelBtn" class="success" disabled>Download Excel</button>
+      <button id="csvBtn" class="warning" disabled>Download CSV</button>
+    </div>
+    <div id="status" class="status">Select an image to start.</div>
+  </div>
+
+  <div class="card preview-wrap">
+    <div>
+      <h3>Original Image</h3>
+      <img id="preview" class="preview" alt="Preview" />
+    </div>
+    <div>
+      <h3>OCR Processing Image</h3>
+      <canvas id="canvas"></canvas>
+      <div class="small hint" style="margin-top:8px;">
+        The image is converted to grayscale and sharpened/thresholded before OCR.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Extracted Consumer Numbers</h3>
+    <div id="count" class="small hint">0 numbers found.</div>
+    <div class="table-wrap">
+      <table id="resultTable">
+        <thead>
+          <tr><th>#</th><th>12-Digit Consumer Number</th><th>Original OCR Match</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>OCR Text</h3>
+    <textarea id="ocrText" style="width:100%;min-height:220px;padding:10px;border:1px solid #ccc;border-radius:8px;"></textarea>
+    <div class="small hint" style="margin-top:8px;">
+      You can edit OCR text manually and then press Extract again if any handwritten digit was read incorrectly.
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const extractBtn = document.getElementById('extractBtn');
+  const copyBtn = document.getElementById('copyBtn');
+  const excelBtn = document.getElementById('excelBtn');
+  const csvBtn = document.getElementById('csvBtn');
+  const preview = document.getElementById('preview');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const statusBox = document.getElementById('status');
+  const ocrText = document.getElementById('ocrText');
+  const resultBody = document.querySelector('#resultTable tbody');
+  const countBox = document.getElementById('count');
+
+  let sourceImage = null;
+  let extracted = [];
+
+  function setStatus(text) {
+    statusBox.textContent = text;
+  }
+
+  function normalizeConsumer(suffix) {
+    const digits = String(suffix).replace(/\D/g, '');
+    if (!digits) return null;
+    // Consumer serial part is 6 digits.
+    const six = digits.padStart(6, '0').slice(-6);
+    return '032000' + six;
+  }
+
+  function addMatch(list, suffix, original) {
+    const normalized = normalizeConsumer(suffix);
+    if (!normalized) return;
+    list.push({ consumer: normalized, original: original || suffix });
+  }
+
+  function extractFromText(text) {
+    const list = [];
+    const clean = String(text || '')
+      .replace(/[—–_]/g, '-')
+      .replace(/[Oo]/g, '0')
+      .replace(/[Il]/g, '1')
+      .replace(/[Ss]/g, '5');
+
+    // Best case: 032 followed by separator and 5/6 digit consumer part.
+    // Also accepts OCR mistakes like 032 = 107018 or 032-107018.
+    const patterns = [
+      /0\s*3\s*2\s*[-:=._ ]\s*(\d{5,6})/g,
+      /\b032\s*(?:[-:=._]|\s){1,3}(\d{5,6})\b/g,
+      /\b(\d{5,6})\b/g
+    ];
+
+    for (const re of patterns) {
+      let m;
+      while ((m = re.exec(clean)) !== null) {
+        // Last generic pattern can catch unrelated 5/6 digit text. We retain it
+        // only when it looks like a list entry in the OCR output.
+        if (re === patterns[2]) {
+          const before = clean.slice(Math.max(0, m.index - 6), m.index);
+          if (!/032\s*[-:=._ ]?\s*$/.test(before)) continue;
+        }
+        addMatch(list, m[1], m[0]);
+      }
+    }
+
+    // Remove duplicates while preserving order.
+    const seen = new Set();
+    return list.filter(x => {
+      if (seen.has(x.consumer)) return false;
+      seen.add(x.consumer);
+      return true;
+    });
+  }
+
+  function renderResults(items) {
+    resultBody.innerHTML = '';
+    extracted = items;
+    items.forEach((item, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${i + 1}</td><td class="mono"><b>${item.consumer}</b></td><td>${escapeHtml(item.original)}</td>`;
+      resultBody.appendChild(tr);
+    });
+    countBox.textContent = `${items.length} number${items.length === 1 ? '' : 's'} found.`;
+    copyBtn.disabled = items.length === 0;
+    excelBtn.disabled = items.length === 0;
+    csvBtn.disabled = items.length === 0;
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  }
+
+  function preprocessImage(img) {
+    const maxWidth = 2200;
+    const scale = Math.min(1, maxWidth / img.naturalWidth);
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = imageData.data;
+
+    // Grayscale + contrast stretch + adaptive-ish threshold.
+    let min = 255, max = 0;
+    const gray = new Uint8Array(canvas.width * canvas.height);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+      const g = Math.round(0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]);
+      gray[p] = g;
+      if (g < min) min = g;
+      if (g > max) max = g;
+    }
+    const range = Math.max(1, max - min);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+      let g = ((gray[p] - min) * 255) / range;
+      // Preserve blue/black handwriting more clearly.
+      g = g < 205 ? 0 : 255;
+      d[i] = d[i+1] = d[i+2] = g;
+      d[i+3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+
+  fileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    preview.onload = () => {
+      sourceImage = preview;
+      preprocessImage(preview);
+      extractBtn.disabled = false;
+      setStatus('Image loaded. Click “Extract Consumer Numbers”.');
+    };
+    preview.src = url;
+  });
+
+  extractBtn.addEventListener('click', async () => {
+    if (!sourceImage) return;
+    extractBtn.disabled = true;
+    setStatus('Starting OCR... This can take a little time for a handwritten image.');
+    try {
+      const worker = await Tesseract.createWorker('eng', 1, {
+        logger: m => {
+          if (m.status) {
+            const pct = m.progress ? ` ${Math.round(m.progress * 100)}%` : '';
+            setStatus(`${m.status}${pct}`);
+          }
+        }
+      });
+
+      await worker.setParameters({
+        tessedit_pageseg_mode: '6',
+        preserve_interword_spaces: '1'
+      });
+
+      const result = await worker.recognize(canvas);
+      await worker.terminate();
+
+      ocrText.value = result.data.text || '';
+      const items = extractFromText(ocrText.value);
+      renderResults(items);
+
+      if (items.length) {
+        setStatus(`OCR complete. ${items.length} consumer number(s) extracted.`);
+      } else {
+        setStatus('OCR completed, but no matching consumer numbers were detected. Edit the OCR text above and try again.');
+      }
+    } catch (err) {
+      console.error(err);
+      setStatus('OCR error: ' + (err.message || err));
+    } finally {
+      extractBtn.disabled = false;
+    }
+  });
+
+  // Re-extract from manually corrected OCR text.
+  ocrText.addEventListener('input', () => {
+    const items = extractFromText(ocrText.value);
+    renderResults(items);
+  });
+
+  copyBtn.addEventListener('click', async () => {
+    const text = extracted.map(x => x.consumer).join('\n');
+    await navigator.clipboard.writeText(text);
+    setStatus(`Copied ${extracted.length} consumer number(s) to clipboard.`);
+  });
+
+  excelBtn.addEventListener('click', () => {
+    const rows = extracted.map((x, i) => ({
+      'SL No': i + 1,
+      'Consumer Number': x.consumer
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows, { header: ['SL No', 'Consumer Number'] });
+    ws['!cols'] = [{ wch: 10 }, { wch: 24 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Consumer Numbers');
+    XLSX.writeFile(wb, 'consumer_numbers.xlsx');
+  });
+
+  csvBtn.addEventListener('click', () => {
+    const csv = ['Consumer Number', ...extracted.map(x => x.consumer)].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'consumer_numbers.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+</script>
+</body>
+</html>
