@@ -1,335 +1,1073 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consumer Number Extractor</title>
+<title>Excel Toolkit — Split &amp; Merge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
-    --bg:#0f172a;
-    --card:#1e293b;
-    --card2:#243348;
-    --accent:#38bdf8;
-    --green:#22c55e;
-    --red:#f87171;
-    --text:#e2e8f0;
-    --muted:#94a3b8;
-    --border:#334155;
+    --paper:#F6F4EE;
+    --grid-line:#E1DDCE;
+    --ink:#1E2420;
+    --ink-soft:#5B6259;
+    --green:#1C6B48;
+    --green-deep:#123F2C;
+    --green-tint:#E4EEE7;
+    --amber:#C17A2B;
+    --red:#B3452F;
+    --white:#FFFFFF;
+    --radius:12px;
+    --mono:'IBM Plex Mono', monospace;
+    --sans:'Inter', system-ui, sans-serif;
   }
   *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
   body{
-    margin:0;
-    font-family:'Segoe UI', Roboto, Arial, sans-serif;
-    background:var(--bg);
-    color:var(--text);
-    padding:20px;
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0/100% 34px,
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0/64px 100%,
+      var(--paper);
+    background-color:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
   }
-  h1{font-size:1.4rem; margin-bottom:4px;}
-  .sub{color:var(--muted); margin-bottom:20px; font-size:0.9rem;}
-  .section{
-    background:var(--card);
-    border-radius:12px;
-    padding:16px;
-    margin-bottom:20px;
-    border:1px solid var(--border);
-  }
-  .section h2{
-    font-size:1rem;
-    color:var(--accent);
-    margin:0 0 12px 0;
-  }
-  .drop-zone{
-    border:2px dashed var(--border);
-    border-radius:10px;
-    padding:30px;
-    text-align:center;
-    color:var(--muted);
-    cursor:pointer;
-    transition:0.2s;
-  }
-  .drop-zone.dragover{
-    border-color:var(--accent);
-    background:#152238;
-    color:var(--accent);
-  }
-  input[type="file"]{display:none;}
-  .images-grid{
+  .wrap{max-width:940px;margin:0 auto;padding:52px 22px 100px;}
+
+  header{margin-bottom:34px;}
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:12.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--green);
     display:flex;
-    flex-wrap:wrap;
-    gap:14px;
-    margin-top:16px;
-  }
-  .image-card{
-    background:var(--card2);
-    border-radius:10px;
-    padding:10px;
-    width:220px;
-    border:1px solid var(--border);
-  }
-  .image-card img{
-    width:100%;
-    height:140px;
-    object-fit:cover;
-    border-radius:6px;
-    cursor:zoom-in;
-    display:block;
-  }
-  .image-card .name{
-    font-size:0.78rem;
-    color:var(--muted);
-    margin:8px 0 6px 0;
-    word-break:break-all;
-  }
-  .image-card textarea{
-    width:100%;
-    min-height:70px;
-    background:#0b1220;
-    color:var(--text);
-    border:1px solid var(--border);
-    border-radius:6px;
-    padding:6px 8px;
-    font-family:'Consolas',monospace;
-    font-size:0.85rem;
-    resize:vertical;
-  }
-  .image-card .row-actions{
-    display:flex;
-    justify-content:space-between;
     align-items:center;
-    margin-top:8px;
-  }
-  .small-btn{
-    padding:5px 10px;
-    font-size:0.75rem;
-    border-radius:6px;
-    border:none;
-    cursor:pointer;
-  }
-  .btn-remove{background:transparent; color:var(--red); border:1px solid var(--red);}
-  .btn-apply{background:var(--accent); color:#0f172a; font-weight:600;}
-  .toolbar{
-    display:flex;
-    flex-wrap:wrap;
     gap:10px;
     margin-bottom:14px;
   }
-  input[type="text"]{
-    flex:1;
-    min-width:200px;
-    padding:10px 14px;
-    border-radius:8px;
-    border:1px solid var(--border);
-    background:var(--card2);
-    color:var(--text);
-    font-size:0.9rem;
+  .eyebrow::before{content:"";width:8px;height:8px;background:var(--green);display:inline-block;border-radius:1px;}
+  h1{
+    font-family:var(--mono);
+    font-weight:700;
+    font-size:clamp(28px,4.6vw,42px);
+    line-height:1.15;
+    margin:0 0 12px;
+    letter-spacing:-0.01em;
+    color:var(--green-deep);
   }
-  button.main-btn{
-    padding:10px 16px;
-    border-radius:8px;
-    border:none;
-    background:var(--accent);
-    color:#0f172a;
-    font-weight:600;
-    cursor:pointer;
-    font-size:0.88rem;
+  h1 span{color:var(--ink);}
+  header p{max-width:600px;color:var(--ink-soft);font-size:15.5px;line-height:1.6;margin:0;}
+
+  /* Tabs */
+  .tabs{display:flex;gap:6px;margin:32px 0 22px;border-bottom:2px solid var(--grid-line);}
+  .tab-btn{
+    background:none;border:none;cursor:pointer;
+    font-family:var(--mono);font-weight:600;font-size:14px;letter-spacing:.02em;
+    color:var(--ink-soft);
+    padding:12px 18px;
+    border-radius:8px 8px 0 0;
+    position:relative;top:2px;
+    transition:color .15s ease;
   }
-  button.main-btn.green{background:var(--green); color:#0f172a;}
-  button.main-btn:hover{opacity:0.9;}
-  .count{color:var(--muted); margin-bottom:10px; font-size:0.85rem;}
-  table{width:100%; border-collapse:collapse; background:var(--card2); border-radius:10px; overflow:hidden;}
-  th, td{padding:9px 12px; text-align:left; border-bottom:1px solid var(--border); font-size:0.88rem;}
-  th{background:#0b1220; color:var(--accent); position:sticky; top:0;}
-  tr:hover td{background:#2b3d57;}
-  .num{font-family:'Consolas', monospace; letter-spacing:0.4px;}
-  .del-btn{background:transparent; border:1px solid var(--red); color:var(--red); padding:3px 8px; border-radius:5px; font-size:0.72rem; cursor:pointer;}
-  .table-wrap{max-height:60vh; overflow:auto; border-radius:10px;}
-  #modal{
-    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85);
-    align-items:center; justify-content:center; z-index:999; cursor:zoom-out;
+  .tab-btn.active{color:var(--green);border-bottom:3px solid var(--green);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  /* Cards */
+  .card{
+    background:var(--white);
+    border:1px solid var(--grid-line);
+    border-radius:var(--radius);
+    box-shadow:0 1px 0 rgba(30,36,32,.03);
+    margin-bottom:22px;
+    overflow:hidden;
   }
-  #modal img{max-width:92vw; max-height:92vh; border-radius:8px;}
-  .empty-msg{color:var(--muted); font-size:0.85rem; padding:10px 0;}
+  .card-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:15px 20px;border-bottom:1px solid var(--grid-line);
+    background:linear-gradient(180deg,#FBFAF6,#FFFFFF);
+  }
+  .card-head .label{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);}
+  .card-body{padding:20px;}
+
+  /* Dropzone */
+  .dropzone{padding:42px 20px;text-align:center;cursor:pointer;transition:background .15s ease;}
+  .dropzone.drag{background:var(--green-tint);}
+  .cell-icon{width:52px;height:40px;margin:0 auto 16px;border:2px solid var(--green);border-radius:6px;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;overflow:hidden;}
+  .cell-icon div{border:1px solid var(--green);}
+  .cell-icon div:nth-child(2){background:var(--green);}
+  .dz-title{font-family:var(--mono);font-weight:600;font-size:15.5px;color:var(--ink);margin-bottom:5px;}
+  .dz-sub{font-size:13px;color:var(--ink-soft);}
+  .dz-sub b{color:var(--green);font-weight:600;}
+  input[type="file"]{display:none;}
+
+  /* Config rows */
+  .field-row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:6px;}
+  .field{display:flex;flex-direction:column;gap:6px;min-width:220px;flex:1;}
+  .field label{font-size:12.5px;font-weight:600;color:var(--ink-soft);font-family:var(--mono);letter-spacing:.03em;text-transform:uppercase;}
+  select{
+    padding:11px 12px;border:1px solid var(--grid-line);border-radius:8px;
+    font-size:14.5px;font-family:var(--sans);background:#fff;color:var(--ink);
+  }
+  select:disabled{color:var(--ink-soft);background:#FAF9F5;}
+
+  .opt-grid{display:flex;flex-direction:column;gap:12px;margin:16px 0 4px;}
+  .opt-row{display:flex;align-items:flex-start;gap:11px;}
+  .opt-row input[type=radio],.opt-row input[type=checkbox]{margin-top:3px;accent-color:var(--green);}
+  .opt-row label{font-size:14.5px;font-weight:600;cursor:pointer;}
+  .opt-row .desc{display:block;font-size:12.5px;color:var(--ink-soft);font-weight:400;margin-top:2px;}
+
+  /* Buttons */
+  button.primary{
+    font-family:var(--mono);font-weight:600;font-size:14px;letter-spacing:.02em;
+    background:var(--green);color:#fff;border:none;padding:13px 24px;border-radius:8px;cursor:pointer;
+    transition:background .15s ease, transform .1s ease;
+  }
+  button.primary:hover:not(:disabled){background:var(--green-deep);}
+  button.primary:active:not(:disabled){transform:translateY(1px);}
+  button.primary:disabled{background:#B9C4BD;cursor:not-allowed;}
+  button.success{
+    font-family:var(--mono);font-weight:600;font-size:14px;
+    background:var(--amber);color:#fff;border:none;padding:13px 24px;border-radius:8px;cursor:pointer;
+    display:none;
+  }
+  button.success:hover{filter:brightness(0.93);}
+
+  .action-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:18px 20px;}
+
+  /* Status */
+  .status-text{font-family:var(--mono);font-size:12.5px;color:var(--ink-soft);padding:0 20px 18px;}
+  .status-text.err{color:var(--red);}
+  .status-text.ok{color:var(--green);}
+
+  /* Info panel */
+  .info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--grid-line);border-top:1px solid var(--grid-line);}
+  .info-cell{background:#FAF9F5;padding:14px 18px;}
+  .info-cell .k{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:4px;}
+  .info-cell .v{font-weight:700;font-size:15px;color:var(--ink);}
+
+  /* File list (merge) */
+  #mergeFileList{list-style:none;margin:16px 0 0;padding:0;text-align:left;}
+  #mergeFileList li{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--green-tint);border-radius:7px;margin-bottom:7px;font-size:13.5px;}
+  #mergeFileList li .fname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;}
+  #mergeFileList li .fmeta{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);flex-shrink:0;}
+  #mergeFileList li button{background:var(--red);color:#fff;border:none;padding:5px 10px;border-radius:5px;font-size:11.5px;cursor:pointer;}
+
+  footer{margin-top:44px;font-size:12.5px;color:var(--ink-soft);text-align:center;font-family:var(--mono);}
+
+  @media (prefers-reduced-motion: reduce){*{transition:none !important;}}
 </style>
 </head>
+
 <body>
+<div class="wrap">
 
-<h1>Consumer Number Extractor</h1>
-<div class="sub">Multiple images upload karke unse consumer numbers nikaliye aur Excel me export kariye &nbsp;|&nbsp; Format: 032 + 9-digit padding</div>
+  <header>
+    <div class="eyebrow">Client-side · nothing is uploaded anywhere</div>
+    <h1>Excel <span>Toolkit</span></h1>
+    <p>Split any Excel sheet by a column, or merge multiple files (and multiple sheets within a file) into one — matched by header name. Everything runs entirely in your browser.</p>
+  </header>
 
-<div class="section">
-  <h2>1. Images Upload Karein</h2>
-  <div class="drop-zone" id="dropZone">
-    📁 Yahan images drag-drop karein, ya click karke choose karein (multiple select allowed)
+  <div class="tabs">
+    <button class="tab-btn active" id="tabSplitBtn">Split</button>
+    <button class="tab-btn" id="tabMergeBtn">Merge</button>
   </div>
-  <input type="file" id="fileInput" accept="image/*" multiple>
-  <div class="images-grid" id="imagesGrid"></div>
+
+
+  <!-- ============================================================ -->
+  <!-- SPLIT TAB -->
+  <!-- ============================================================ -->
+  <div class="tab-panel active" id="splitPanel">
+
+    <div class="card">
+      <div class="card-head"><span class="label">01 — Upload file</span><span class="label" id="splitFileLabel">No file</span></div>
+      <div class="dropzone" id="splitDropzone">
+        <div class="cell-icon"><div></div><div></div><div></div><div></div><div></div><div></div></div>
+        <div class="dz-title">Drop your Excel file here</div>
+        <div class="dz-sub">or <b>click to browse</b> — .xlsx</div>
+        <input type="file" id="splitFileInput" accept=".xlsx">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="label">02 — Configure split</span></div>
+      <div class="card-body">
+        <div class="field-row">
+          <div class="field">
+            <label for="sheetSelect">Sheet</label>
+            <select id="sheetSelect" disabled><option>Upload a file first</option></select>
+          </div>
+          <div class="field">
+            <label for="columnSelect">Split by column</label>
+            <select id="columnSelect" disabled><option>Select a sheet first</option></select>
+          </div>
+        </div>
+
+        <div class="opt-grid">
+          <div class="opt-row">
+            <input type="radio" name="splitOutputMode" id="modeFiles" value="files" checked>
+            <div>
+              <label for="modeFiles">Separate Excel files (.zip)</label>
+              <span class="desc">Each unique value in the chosen column becomes its own downloadable .xlsx file, bundled in a ZIP.</span>
+            </div>
+          </div>
+          <div class="opt-row">
+            <input type="radio" name="splitOutputMode" id="modeSheets" value="sheets">
+            <div>
+              <label for="modeSheets">Separate sheets (one file)</label>
+              <span class="desc">Each unique value becomes its own sheet/tab inside a single output workbook.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <button class="primary" id="splitBtn" disabled>Split Excel</button>
+        <button class="success" id="splitDownloadBtn">Download Result</button>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-cell"><div class="k">File</div><div class="v" id="fileName">—</div></div>
+        <div class="info-cell"><div class="k">Sheet</div><div class="v" id="selectedSheet">—</div></div>
+        <div class="info-cell"><div class="k">Total Rows</div><div class="v" id="rowCount">—</div></div>
+        <div class="info-cell"><div class="k">Groups Created</div><div class="v" id="groupCount">—</div></div>
+      </div>
+
+      <div class="status-text" id="status">Waiting for a file…</div>
+    </div>
+
+  </div>
+
+
+  <!-- ============================================================ -->
+  <!-- MERGE TAB -->
+  <!-- ============================================================ -->
+  <div class="tab-panel" id="mergePanel">
+
+    <div class="card">
+      <div class="card-head"><span class="label">01 — Upload files</span><span class="label" id="mergeFileCountLabel">0 files</span></div>
+      <div class="dropzone" id="mergeDropzone">
+        <div class="cell-icon"><div></div><div></div><div></div><div></div><div></div><div></div></div>
+        <div class="dz-title">Drop Excel files here</div>
+        <div class="dz-sub">or <b>click to browse</b> — multiple .xlsx / .xls / .csv allowed</div>
+        <input type="file" id="mergeFileInput" accept=".xlsx,.xls,.csv" multiple>
+      </div>
+      <ul id="mergeFileList"></ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="label">02 — How it works</span></div>
+      <div class="card-body">
+        <p style="margin:0;font-size:14px;color:var(--ink-soft);line-height:1.6;">
+          Every sheet from every uploaded file is combined into <b>one output sheet</b>. Columns are matched
+          by <b>header name</b> — if files have columns in different orders, or some files are missing a column,
+          everything still lines up correctly (missing values are left blank). Two extra columns are added at
+          the end: <b>Source File</b> and <b>Sheet Name</b>, so you always know where each row came from.
+          This also works for a single file that has multiple sheets — just upload the one file.
+        </p>
+      </div>
+
+      <div class="action-bar">
+        <button class="primary" id="mergeBtn" disabled>Merge Excel</button>
+        <button class="success" id="mergeDownloadBtn">Download Merged File</button>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-cell"><div class="k">Files Selected</div><div class="v" id="mergeSourceFileCount">0</div></div>
+        <div class="info-cell"><div class="k">Sheets Merged</div><div class="v" id="mergeSheetCount">—</div></div>
+        <div class="info-cell"><div class="k">Total Rows</div><div class="v" id="mergeRowCount">—</div></div>
+      </div>
+
+      <div class="status-text" id="mergeStatus">Waiting for files…</div>
+    </div>
+
+  </div>
+
+  <footer>index.html · JSZip + SheetJS · runs entirely in your browser</footer>
 </div>
 
-<div class="section">
-  <h2>2. Extracted Numbers Table</h2>
-  <div class="toolbar">
-    <input type="text" id="search" placeholder="Search number...">
-    <button class="main-btn" onclick="clearAll()">Clear All</button>
-    <button class="main-btn green" onclick="downloadExcel()">⬇ Download Excel (.xlsx)</button>
-    <button class="main-btn" onclick="downloadCSV()">⬇ Download CSV</button>
-  </div>
-  <div class="count" id="count"></div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th style="width:50px;">#</th><th>Source Image</th><th>Original</th><th>Consumer Number (12-digit)</th><th style="width:70px;">Del</th></tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
-  </div>
-</div>
-
-<div id="modal" onclick="this.style.display='none'"><img id="modalImg" src=""></div>
 
 <script>
-let images = [];   // {id, name, url}
-let entries = [];  // {id, imageName, original, consumer}
-let imgCounter = 0;
-let entryCounter = 0;
+/*
+=========================================================================
+SHARED HELPERS
+=========================================================================
+*/
 
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-const imagesGrid = document.getElementById('imagesGrid');
-const tbody = document.getElementById('tbody');
-const countEl = document.getElementById('count');
-const modal = document.getElementById('modal');
-const modalImg = document.getElementById('modalImg');
+const MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
+const CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types";
+const R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const WORKSHEET_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
+const WORKSHEET_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
 
-dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('dragover');
-  handleFiles(e.dataTransfer.files);
+function parseXML(text){ return new DOMParser().parseFromString(text, "application/xml"); }
+function serializeXML(xml){ return new XMLSerializer().serializeToString(xml); }
+function cleanText(v){ return (v === null || v === undefined) ? "" : String(v).trim(); }
+function breathe(){ return new Promise(function(r){ setTimeout(r, 0); }); }
+
+function columnLetterToNumber(letters){
+  let n = 0;
+  for (let i = 0; i < letters.length; i++){ n = n * 26 + (letters.charCodeAt(i) - 64); }
+  return n;
+}
+function getCellColumn(reference){
+  if (!reference) return null;
+  const m = reference.match(/^([A-Z]+)/);
+  return m ? columnLetterToNumber(m[1]) : null;
+}
+
+function safeSheetName(name, used){
+  let base = String(name).replace(/[\[\]\*\/\\\?:]/g, " ").trim().slice(0, 31) || "Sheet";
+  let out = base, n = 1;
+  while (used.has(out)){
+    const suffix = " (" + (++n) + ")";
+    out = base.slice(0, 31 - suffix.length) + suffix;
+  }
+  used.add(out);
+  return out;
+}
+
+function safeFileName(value){
+  let name = String(value).replace(/[\\\/:*?"<>|]/g, "_").trim();
+  return name || "Blank";
+}
+
+function setupDropzone(zoneEl, inputEl, onFiles){
+  zoneEl.addEventListener("click", function(){ inputEl.click(); });
+  inputEl.addEventListener("change", function(e){ onFiles(e.target.files); inputEl.value = ""; });
+  ["dragenter","dragover"].forEach(function(ev){
+    zoneEl.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); zoneEl.classList.add("drag"); });
+  });
+  ["dragleave","drop"].forEach(function(ev){
+    zoneEl.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); zoneEl.classList.remove("drag"); });
+  });
+  zoneEl.addEventListener("drop", function(e){
+    if (e.dataTransfer && e.dataTransfer.files) onFiles(e.dataTransfer.files);
+  });
+}
+
+function fmtSize(bytes){
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + " KB";
+  return (bytes/(1024*1024)).toFixed(2) + " MB";
+}
+
+
+/*
+=========================================================================
+TAB SWITCHING
+=========================================================================
+*/
+
+const tabSplitBtn = document.getElementById("tabSplitBtn");
+const tabMergeBtn = document.getElementById("tabMergeBtn");
+const splitPanel = document.getElementById("splitPanel");
+const mergePanel = document.getElementById("mergePanel");
+
+tabSplitBtn.addEventListener("click", function(){
+  tabSplitBtn.classList.add("active"); tabMergeBtn.classList.remove("active");
+  splitPanel.classList.add("active"); mergePanel.classList.remove("active");
 });
-fileInput.addEventListener('change', e => handleFiles(e.target.files));
+tabMergeBtn.addEventListener("click", function(){
+  tabMergeBtn.classList.add("active"); tabSplitBtn.classList.remove("active");
+  mergePanel.classList.add("active"); splitPanel.classList.remove("active");
+});
 
-function handleFiles(fileList){
-  Array.from(fileList).forEach(file => {
-    if(!file.type.startsWith('image/')) return;
-    const id = 'img' + (imgCounter++);
-    const url = URL.createObjectURL(file);
-    images.push({id, name: file.name, url});
-    renderImages();
-  });
+
+/*
+=========================================================================
+=========================================================================
+SPLIT TAB
+=========================================================================
+=========================================================================
+*/
+
+let originalZip = null;
+let originalFileBuffer = null;
+let selectedSheetName = "";
+let selectedSheetPath = "";
+let selectedSheetRawXMLText = "";
+let splitResult = null; // { type: "zip"|"xlsx", blob }
+
+const splitDropzone = document.getElementById("splitDropzone");
+const splitFileInput = document.getElementById("splitFileInput");
+const splitFileLabel = document.getElementById("splitFileLabel");
+const sheetSelect = document.getElementById("sheetSelect");
+const columnSelect = document.getElementById("columnSelect");
+const splitBtn = document.getElementById("splitBtn");
+const splitDownloadBtn = document.getElementById("splitDownloadBtn");
+const statusEl = document.getElementById("status");
+
+function setSplitStatus(msg, kind){
+  statusEl.textContent = msg;
+  statusEl.className = "status-text" + (kind ? " " + kind : "");
 }
 
-function renderImages(){
-  imagesGrid.innerHTML = '';
-  images.forEach(img => {
-    const card = document.createElement('div');
-    card.className = 'image-card';
-    card.innerHTML = `
-      <img src="${img.url}" onclick="zoomImg('${img.url}')">
-      <div class="name">${img.name}</div>
-      <textarea placeholder="Har line me ek number likhein (jaise 107018)" id="ta_${img.id}"></textarea>
-      <div class="row-actions">
-        <button class="small-btn btn-remove" onclick="removeImage('${img.id}')">Remove</button>
-        <button class="small-btn btn-apply" onclick="applyNumbers('${img.id}', '${img.name.replace(/'/g,"\\'")}')">Add to Table</button>
-      </div>
-    `;
-    imagesGrid.appendChild(card);
-  });
-}
+setupDropzone(splitDropzone, splitFileInput, function(files){
+  if (files && files[0]) handleSplitFile(files[0]);
+});
 
-function zoomImg(url){
-  modalImg.src = url;
-  modal.style.display = 'flex';
-}
+async function handleSplitFile(file){
+  try{
+    setSplitStatus("Reading Excel file…");
+    splitDownloadBtn.style.display = "none";
+    splitResult = null;
 
-function removeImage(id){
-  images = images.filter(i => i.id !== id);
-  renderImages();
-}
+    const buffer = await file.arrayBuffer();
+    originalFileBuffer = buffer;
+    originalZip = await JSZip.loadAsync(buffer);
 
-function toConsumerNumber(n){
-  n = n.replace(/[^0-9]/g, '');
-  if(!n) return null;
-  if(n.length > 9) n = n.slice(-9);
-  return "032" + n.padStart(9,"0");
-}
+    const workbookData = await getWorkbookSheets(originalZip);
 
-function applyNumbers(imgId, imgName){
-  const ta = document.getElementById('ta_' + imgId);
-  const lines = ta.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  lines.forEach(line => {
-    const consumer = toConsumerNumber(line);
-    if(consumer){
-      entries.push({id: 'e'+(entryCounter++), imageName: imgName, original: line, consumer});
-    }
-  });
-  ta.value = '';
-  renderTable();
-}
-
-function removeEntry(id){
-  entries = entries.filter(e => e.id !== id);
-  renderTable();
-}
-
-function renderTable(filter=''){
-  tbody.innerHTML = '';
-  const list = filter
-    ? entries.filter(e => e.original.includes(filter) || e.consumer.includes(filter))
-    : entries;
-
-  if(list.length === 0){
-    tbody.innerHTML = `<tr><td colspan="5" class="empty-msg">Koi entry nahi hai. Upar image upload karke numbers add karein.</td></tr>`;
-  } else {
-    list.forEach((e, i) => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${i+1}</td>
-        <td>${e.imageName}</td>
-        <td class="num">${e.original}</td>
-        <td class="num">${e.consumer}</td>
-        <td><button class="del-btn" onclick="removeEntry('${e.id}')">✕</button></td>
-      `;
-      tbody.appendChild(tr);
+    sheetSelect.innerHTML = "";
+    workbookData.sheets.forEach(function(sheet){
+      const opt = document.createElement("option");
+      opt.value = sheet.name;
+      opt.textContent = sheet.name;
+      sheetSelect.appendChild(opt);
     });
+    sheetSelect.disabled = false;
+
+    const defaultSheet = workbookData.sheets[0];
+    if (!defaultSheet) throw new Error("No sheets found in this file.");
+    sheetSelect.value = defaultSheet.name;
+
+    await loadSelectedSheet(defaultSheet.name);
+
+    splitFileLabel.textContent = file.name;
+    document.getElementById("fileName").textContent = file.name;
+    setSplitStatus("File loaded successfully.", "ok");
   }
-  countEl.textContent = `Total: ${entries.length} consumer numbers`;
-}
-
-document.getElementById('search').addEventListener('input', e => renderTable(e.target.value.trim()));
-
-function clearAll(){
-  if(confirm('Saari entries clear kar dein?')){
-    entries = [];
-    renderTable();
+  catch(err){
+    console.error(err);
+    setSplitStatus("Error: " + err.message, "err");
+    alert("Could not read the Excel file:\n\n" + err.message);
   }
 }
 
-function downloadExcel(){
-  if(entries.length === 0){ alert('Koi data nahi hai export karne ke liye.'); return; }
-  const wsData = [['S.No', 'Source Image', 'Original', 'Consumer Number']];
-  entries.forEach((e,i) => wsData.push([i+1, e.imageName, e.original, e.consumer]));
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{wch:6},{wch:28},{wch:14},{wch:20}];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Consumer Numbers');
-  XLSX.writeFile(wb, 'consumer_numbers.xlsx');
+sheetSelect.addEventListener("change", async function(){
+  try{ await loadSelectedSheet(this.value); }
+  catch(err){ console.error(err); alert(err.message); }
+});
+
+async function getWorkbookSheets(zip){
+  const workbookFile = zip.file("xl/workbook.xml");
+  if (!workbookFile) throw new Error("workbook.xml not found.");
+  const text = await workbookFile.async("text");
+  const xml = parseXML(text);
+  const sheets = Array.from(xml.getElementsByTagNameNS(MAIN_NS, "sheet")).map(function(s){
+    return { name: s.getAttribute("name"), rid: s.getAttribute("r:id") };
+  });
+  return { xml: xml, sheets: sheets };
 }
 
-function downloadCSV(){
-  if(entries.length === 0){ alert('Koi data nahi hai export karne ke liye.'); return; }
-  let csv = 'S.No,Source Image,Original,Consumer Number\n';
-  entries.forEach((e,i) => csv += `${i+1},${e.imageName},${e.original},${e.consumer}\n`);
-  const blob = new Blob([csv], {type:'text/csv'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'consumer_numbers.csv'; a.click();
-  URL.revokeObjectURL(url);
+async function findSheetPath(zip, relationshipId){
+  const relFile = zip.file("xl/_rels/workbook.xml.rels");
+  if (!relFile) throw new Error("workbook.xml.rels not found.");
+  const text = await relFile.async("text");
+  const xml = parseXML(text);
+  const rel = Array.from(xml.getElementsByTagName("Relationship")).find(function(r){
+    return r.getAttribute("Id") === relationshipId;
+  });
+  if (!rel) return null;
+  let target = rel.getAttribute("Target");
+  if (!target) return null;
+  target = target.replace(/^\/+/, "");
+  if (!target.startsWith("xl/")) target = "xl/" + target;
+  return target;
 }
 
-renderTable();
+async function readSharedStrings(zip){
+  const file = zip.file("xl/sharedStrings.xml");
+  if (!file) return [];
+  const text = await file.async("text");
+  const xml = parseXML(text);
+  return Array.from(xml.getElementsByTagNameNS(MAIN_NS, "si")).map(function(si){
+    return Array.from(si.getElementsByTagNameNS(MAIN_NS, "t")).map(function(t){ return t.textContent; }).join("");
+  });
+}
+
+async function getCellValue(cell, sharedStrings){
+  if (!cell) return "";
+  const type = cell.getAttribute("t");
+  if (type === "inlineStr"){
+    const val = Array.from(cell.getElementsByTagNameNS(MAIN_NS, "t")).map(function(n){ return n.textContent; }).join("");
+    return cleanText(val);
+  }
+  const valueNode = cell.getElementsByTagNameNS(MAIN_NS, "v")[0];
+  if (!valueNode) return "";
+  let value = valueNode.textContent;
+  if (type === "s"){
+    const idx = parseInt(value, 10);
+    if (!isNaN(idx) && sharedStrings[idx] !== undefined) value = sharedStrings[idx];
+  }
+  return cleanText(value);
+}
+
+async function loadSelectedSheet(sheetName){
+  selectedSheetName = sheetName;
+
+  const workbookData = await getWorkbookSheets(originalZip);
+  const sheet = workbookData.sheets.find(function(s){ return s.name === sheetName; });
+  if (!sheet) throw new Error("Sheet not found: " + sheetName);
+
+  selectedSheetPath = await findSheetPath(originalZip, sheet.rid);
+  if (!selectedSheetPath) throw new Error("Could not resolve the XML path for this sheet.");
+
+  const sheetFile = originalZip.file(selectedSheetPath);
+  if (!sheetFile) throw new Error("Sheet file not found:\n" + selectedSheetPath);
+
+  const text = await sheetFile.async("text");
+  selectedSheetRawXMLText = text;
+  const sheetXML = parseXML(text);
+
+  const sharedStrings = await readSharedStrings(originalZip);
+  const sheetData = sheetXML.getElementsByTagNameNS(MAIN_NS, "sheetData")[0];
+  if (!sheetData) throw new Error("No sheet data found.");
+
+  const rows = Array.from(sheetData.getElementsByTagNameNS(MAIN_NS, "row"));
+  if (!rows.length) throw new Error("This sheet has no rows.");
+
+  const headerCells = Array.from(rows[0].getElementsByTagNameNS(MAIN_NS, "c"));
+
+  columnSelect.innerHTML = "";
+  for (const cell of headerCells){
+    const column = getCellColumn(cell.getAttribute("r"));
+    if (!column) continue;
+    const value = await getCellValue(cell, sharedStrings);
+    const opt = document.createElement("option");
+    opt.value = column;
+    opt.textContent = value || ("Column " + column);
+    columnSelect.appendChild(opt);
+  }
+  columnSelect.selectedIndex = 0;
+  columnSelect.disabled = false;
+
+  splitBtn.disabled = false;
+  document.getElementById("selectedSheet").textContent = sheetName;
+  document.getElementById("rowCount").textContent = Math.max(rows.length - 1, 0);
+  document.getElementById("groupCount").textContent = "—";
+}
+
+
+/*
+=========================================================================
+BUILD A SINGLE GROUP'S SHEET XML
+(clones the header row + only the matching rows, keeps original styles)
+=========================================================================
+*/
+
+function buildGroupSheetXML(matchingRows){
+  const doc = parseXML(selectedSheetRawXMLText);
+  const sheetData = doc.getElementsByTagNameNS(MAIN_NS, "sheetData")[0];
+  const existingRows = Array.from(sheetData.getElementsByTagNameNS(MAIN_NS, "row"));
+
+  for (let i = 1; i < existingRows.length; i++) sheetData.removeChild(existingRows[i]);
+
+  let newRowNumber = 2;
+  for (const sourceRow of matchingRows){
+    const newRow = sourceRow.cloneNode(true);
+    newRow.setAttribute("r", String(newRowNumber));
+    Array.from(newRow.getElementsByTagNameNS(MAIN_NS, "c")).forEach(function(cell){
+      const oldRef = cell.getAttribute("r");
+      if (!oldRef) return;
+      const m = oldRef.match(/^([A-Z]+)/);
+      if (m) cell.setAttribute("r", m[1] + newRowNumber);
+    });
+    sheetData.appendChild(newRow);
+    newRowNumber++;
+  }
+
+  const dimension = doc.getElementsByTagNameNS(MAIN_NS, "dimension")[0];
+  if (dimension){
+    const currentRef = dimension.getAttribute("ref");
+    if (currentRef){
+      const parts = currentRef.split(":");
+      const start = parts[0];
+      const end = parts[1] || parts[0];
+      const endCol = end.match(/^([A-Z]+)/);
+      if (endCol) dimension.setAttribute("ref", start + ":" + endCol[1] + (newRowNumber - 1));
+    }
+  }
+
+  const autoFilter = doc.getElementsByTagNameNS(MAIN_NS, "autoFilter")[0];
+  if (autoFilter){
+    const filterRef = autoFilter.getAttribute("ref");
+    if (filterRef){
+      const parts = filterRef.split(":");
+      if (parts.length === 2){
+        const endCol = parts[1].match(/^([A-Z]+)/);
+        if (endCol) autoFilter.setAttribute("ref", parts[0] + ":" + endCol[1] + (newRowNumber - 1));
+      }
+    }
+  }
+
+  return serializeXML(doc);
+}
+
+
+/*
+=========================================================================
+GROUP ROWS BY THE SELECTED COLUMN
+=========================================================================
+*/
+
+async function groupRowsByColumn(columnNumber){
+  const sheetFile = originalZip.file(selectedSheetPath);
+  const sheetText = await sheetFile.async("text");
+  const doc = parseXML(sheetText);
+  const sheetData = doc.getElementsByTagNameNS(MAIN_NS, "sheetData")[0];
+  const rows = Array.from(sheetData.getElementsByTagNameNS(MAIN_NS, "row"));
+  const sharedStrings = await readSharedStrings(originalZip);
+
+  const groups = new Map();
+
+  for (let i = 1; i < rows.length; i++){
+    const row = rows[i];
+    const cells = Array.from(row.getElementsByTagNameNS(MAIN_NS, "c"));
+    let value = "";
+    for (const cell of cells){
+      if (getCellColumn(cell.getAttribute("r")) === columnNumber){
+        value = await getCellValue(cell, sharedStrings);
+        break;
+      }
+    }
+    value = cleanText(value) || "Blank";
+    if (!groups.has(value)) groups.set(value, []);
+    groups.get(value).push(row);
+  }
+
+  return groups;
+}
+
+
+/*
+=========================================================================
+SPLIT — OUTPUT AS SEPARATE ZIP FILES
+=========================================================================
+*/
+
+async function splitIntoZip(groups){
+  const outputZIP = new JSZip();
+  let counter = 0;
+
+  for (const [groupName, matchingRows] of groups){
+    counter++;
+    setSplitStatus("Processing " + counter + " / " + groups.size + " : " + groupName);
+
+    const newZip = await JSZip.loadAsync(originalFileBuffer.slice(0));
+    const sheetXMLString = buildGroupSheetXML(matchingRows);
+    newZip.file(selectedSheetPath, sheetXMLString);
+
+    const blob = await newZip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+    outputZIP.file(safeFileName(groupName) + ".xlsx", blob);
+
+    await breathe();
+  }
+
+  setSplitStatus("Building final ZIP…");
+  return await outputZIP.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+}
+
+
+/*
+=========================================================================
+SPLIT — OUTPUT AS SEPARATE SHEETS IN ONE WORKBOOK
+=========================================================================
+*/
+
+function getNextWorksheetFileNumber(zip){
+  let max = 0;
+  Object.keys(zip.files).forEach(function(path){
+    const m = path.match(/^xl\/worksheets\/sheet(\d+)\.xml$/i);
+    if (m){ const n = parseInt(m[1], 10); if (n > max) max = n; }
+  });
+  return max + 1;
+}
+
+function getNextRelId(relsDoc){
+  let max = 0;
+  Array.from(relsDoc.getElementsByTagName("Relationship")).forEach(function(r){
+    const m = (r.getAttribute("Id") || "").match(/^rId(\d+)$/i);
+    if (m){ const n = parseInt(m[1], 10); if (n > max) max = n; }
+  });
+  return "rId" + (max + 1);
+}
+
+function getNextSheetId(workbookDoc){
+  let max = 0;
+  Array.from(workbookDoc.getElementsByTagNameNS(MAIN_NS, "sheet")).forEach(function(s){
+    const n = parseInt(s.getAttribute("sheetId") || "0", 10);
+    if (n > max) max = n;
+  });
+  return max + 1;
+}
+
+function removeSheetFromWorkbook(workbookDoc, relsDoc, contentTypesDoc, zip, sheetName, sheetPath){
+  const target = Array.from(workbookDoc.getElementsByTagNameNS(MAIN_NS, "sheet")).find(function(s){
+    return s.getAttribute("name") === sheetName;
+  });
+  if (!target) return;
+
+  const relId = target.getAttribute("r:id");
+  target.parentNode.removeChild(target);
+
+  if (relId){
+    const relTarget = Array.from(relsDoc.getElementsByTagName("Relationship")).find(function(r){
+      return r.getAttribute("Id") === relId;
+    });
+    if (relTarget) relTarget.parentNode.removeChild(relTarget);
+  }
+
+  const overrideTarget = Array.from(contentTypesDoc.getElementsByTagName("Override")).find(function(o){
+    return o.getAttribute("PartName") === "/" + sheetPath;
+  });
+  if (overrideTarget) overrideTarget.parentNode.removeChild(overrideTarget);
+
+  zip.remove(sheetPath);
+}
+
+async function splitIntoSheets(groups){
+  const combinedZip = await JSZip.loadAsync(originalFileBuffer.slice(0));
+
+  const workbookXmlText = await combinedZip.file("xl/workbook.xml").async("text");
+  const workbookDoc = parseXML(workbookXmlText);
+
+  const relsPath = "xl/_rels/workbook.xml.rels";
+  const relsXmlText = await combinedZip.file(relsPath).async("text");
+  const relsDoc = parseXML(relsXmlText);
+
+  const contentTypesPath = "[Content_Types].xml";
+  const contentTypesText = await combinedZip.file(contentTypesPath).async("text");
+  const contentTypesDoc = parseXML(contentTypesText);
+
+  const sheetsContainer = workbookDoc.getElementsByTagNameNS(MAIN_NS, "sheets")[0];
+  const relationshipsContainer = relsDoc.getElementsByTagName("Relationships")[0];
+  const typesContainer = contentTypesDoc.getElementsByTagName("Types")[0];
+
+  const existingNames = new Set(
+    Array.from(workbookDoc.getElementsByTagNameNS(MAIN_NS, "sheet")).map(function(s){ return s.getAttribute("name"); })
+  );
+
+  let counter = 0;
+
+  for (const [groupName, matchingRows] of groups){
+    counter++;
+    setSplitStatus("Adding sheet " + counter + " / " + groups.size + " : " + groupName);
+
+    const sheetXMLString = buildGroupSheetXML(matchingRows);
+
+    const nextFileNum = getNextWorksheetFileNumber(combinedZip);
+    const newPath = "xl/worksheets/sheet" + nextFileNum + ".xml";
+    combinedZip.file(newPath, sheetXMLString);
+
+    const newRelId = getNextRelId(relsDoc);
+    const newSheetId = getNextSheetId(workbookDoc);
+    const safeName = safeSheetName(groupName, existingNames);
+
+    const relEl = relsDoc.createElementNS(RELS_NS, "Relationship");
+    relEl.setAttribute("Id", newRelId);
+    relEl.setAttribute("Type", WORKSHEET_REL_TYPE);
+    relEl.setAttribute("Target", "worksheets/sheet" + nextFileNum + ".xml");
+    relationshipsContainer.appendChild(relEl);
+
+    const sheetEl = workbookDoc.createElementNS(MAIN_NS, "sheet");
+    sheetEl.setAttribute("name", safeName);
+    sheetEl.setAttribute("sheetId", String(newSheetId));
+    sheetEl.setAttributeNS(R_NS, "r:id", newRelId);
+    sheetsContainer.appendChild(sheetEl);
+
+    const overrideEl = contentTypesDoc.createElementNS(CT_NS, "Override");
+    overrideEl.setAttribute("PartName", "/" + newPath);
+    overrideEl.setAttribute("ContentType", WORKSHEET_CONTENT_TYPE);
+    typesContainer.appendChild(overrideEl);
+
+    await breathe();
+  }
+
+  removeSheetFromWorkbook(workbookDoc, relsDoc, contentTypesDoc, combinedZip, selectedSheetName, selectedSheetPath);
+
+  combinedZip.file("xl/workbook.xml", serializeXML(workbookDoc));
+  combinedZip.file(relsPath, serializeXML(relsDoc));
+  combinedZip.file(contentTypesPath, serializeXML(contentTypesDoc));
+
+  setSplitStatus("Building final Excel file…");
+  return await combinedZip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+}
+
+
+/*
+=========================================================================
+SPLIT BUTTON
+=========================================================================
+*/
+
+splitBtn.addEventListener("click", async function(){
+  if (!originalZip){ alert("Please upload an Excel file first."); return; }
+
+  const columnNumber = parseInt(columnSelect.value);
+  if (!columnNumber || columnNumber < 1){ alert("Please choose a column to split by."); return; }
+
+  const outputMode = document.querySelector('input[name="splitOutputMode"]:checked').value;
+
+  splitBtn.disabled = true;
+  splitDownloadBtn.style.display = "none";
+  splitResult = null;
+
+  try{
+    setSplitStatus("Reading data…");
+    const groups = await groupRowsByColumn(columnNumber);
+
+    if (groups.size === 0){ alert("No data found to split."); return; }
+
+    document.getElementById("groupCount").textContent = groups.size;
+
+    let blob;
+    if (outputMode === "sheets"){
+      blob = await splitIntoSheets(groups);
+      splitResult = { type: "xlsx", blob: blob };
+      splitDownloadBtn.textContent = "Download Excel File";
+    } else {
+      blob = await splitIntoZip(groups);
+      splitResult = { type: "zip", blob: blob };
+      splitDownloadBtn.textContent = "Download ZIP";
+    }
+
+    splitDownloadBtn.style.display = "inline-block";
+    setSplitStatus("✅ Done! " + groups.size + " group(s) created.", "ok");
+  }
+  catch(err){
+    console.error(err);
+    setSplitStatus("Error.", "err");
+    alert("Something went wrong while splitting:\n\n" + err.message);
+  }
+  finally{
+    splitBtn.disabled = false;
+  }
+});
+
+splitDownloadBtn.addEventListener("click", function(){
+  if (!splitResult){ alert("Please split the file first."); return; }
+  const url = URL.createObjectURL(splitResult.blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = splitResult.type === "zip" ? "Split_Files.zip" : "Split_Sheets.xlsx";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+});
+
+
+/*
+=========================================================================
+=========================================================================
+MERGE TAB
+=========================================================================
+=========================================================================
+*/
+
+let mergeFiles = [];
+let mergeFileIdSeq = 0;
+let generatedMergedBlob = null;
+
+const mergeDropzone = document.getElementById("mergeDropzone");
+const mergeFileInput = document.getElementById("mergeFileInput");
+const mergeFileListEl = document.getElementById("mergeFileList");
+const mergeFileCountLabel = document.getElementById("mergeFileCountLabel");
+const mergeSourceFileCountEl = document.getElementById("mergeSourceFileCount");
+const mergeSheetCountEl = document.getElementById("mergeSheetCount");
+const mergeRowCountEl = document.getElementById("mergeRowCount");
+const mergeBtn = document.getElementById("mergeBtn");
+const mergeDownloadBtn = document.getElementById("mergeDownloadBtn");
+const mergeStatusEl = document.getElementById("mergeStatus");
+
+function setMergeStatus(msg, kind){
+  mergeStatusEl.textContent = msg;
+  mergeStatusEl.className = "status-text" + (kind ? " " + kind : "");
+}
+
+setupDropzone(mergeDropzone, mergeFileInput, function(files){
+  const arr = Array.from(files);
+  const valid = arr.filter(function(f){ return /\.(xlsx|xls|csv)$/i.test(f.name); });
+  if (valid.length < arr.length) setMergeStatus("Some files were skipped (only .xlsx / .xls / .csv are supported).", "err");
+  valid.forEach(function(f){ mergeFiles.push({ id: "m" + (mergeFileIdSeq++), file: f }); });
+  renderMergeFileList();
+});
+
+function renderMergeFileList(){
+  mergeFileCountLabel.textContent = mergeFiles.length + (mergeFiles.length === 1 ? " file" : " files");
+  mergeSourceFileCountEl.textContent = mergeFiles.length;
+  mergeBtn.disabled = mergeFiles.length === 0;
+
+  mergeFileListEl.innerHTML = "";
+  mergeFiles.forEach(function(entry){
+    const li = document.createElement("li");
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "fname";
+    nameSpan.textContent = entry.file.name;
+
+    const metaSpan = document.createElement("span");
+    metaSpan.className = "fmeta";
+    metaSpan.textContent = fmtSize(entry.file.size);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", function(){
+      mergeFiles = mergeFiles.filter(function(e){ return e.id !== entry.id; });
+      renderMergeFileList();
+    });
+
+    li.appendChild(nameSpan);
+    li.appendChild(metaSpan);
+    li.appendChild(removeBtn);
+    mergeFileListEl.appendChild(li);
+  });
+
+  if (mergeFiles.length === 0) setMergeStatus("Waiting for files…");
+  else setMergeStatus(mergeFiles.length + " file(s) ready — click Merge Excel.");
+}
+
+function readFileAsWorkbook(file){
+  return new Promise(function(resolve, reject){
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        const data = new Uint8Array(e.target.result);
+        resolve(XLSX.read(data, { type: "array", cellDates: true }));
+      } catch(err){ reject(err); }
+    };
+    reader.onerror = function(){ reject(new Error("Could not read: " + file.name)); };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+mergeBtn.addEventListener("click", async function(){
+  if (mergeFiles.length === 0) return;
+
+  mergeBtn.disabled = true;
+  mergeDownloadBtn.style.display = "none";
+  generatedMergedBlob = null;
+  setMergeStatus("Reading files…");
+
+  try{
+    /*
+    PASS 1 — read every sheet of every file, collect header + data rows.
+    */
+    const sources = [];
+
+    for (const entry of mergeFiles){
+      const file = entry.file;
+      const wb = await readFileAsWorkbook(file);
+
+      for (const sn of wb.SheetNames){
+        const ws = wb.Sheets[sn];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
+        if (rows.length === 0) continue;
+
+        sources.push({
+          fileName: file.name,
+          sheetName: sn,
+          header: rows[0],
+          dataRows: rows.slice(1)
+        });
+      }
+
+      await breathe();
+    }
+
+    if (sources.length === 0){ alert("No data found in the selected files."); return; }
+
+    /*
+    PASS 2 — build the union of all header names, in first-seen order.
+    */
+    setMergeStatus("Matching columns by header name…");
+
+    const headerUnion = [];
+    const headerIndex = new Map();
+
+    sources.forEach(function(src){
+      src.header.forEach(function(h){
+        const name = String(h || "").trim();
+        if (!name || headerIndex.has(name)) return;
+        headerIndex.set(name, headerUnion.length);
+        headerUnion.push(name);
+      });
+    });
+
+    /*
+    PASS 3 — build combined rows aligned to the header union,
+    with Source File + Sheet Name appended.
+    */
+    setMergeStatus("Merging rows…");
+
+    let combinedRows = [];
+    let totalRows = 0;
+
+    sources.forEach(function(src){
+      src.dataRows.forEach(function(r){
+        const outRow = new Array(headerUnion.length).fill("");
+        src.header.forEach(function(h, idx){
+          const name = String(h || "").trim();
+          if (!name) return;
+          const colIdx = headerIndex.get(name);
+          outRow[colIdx] = r[idx] !== undefined ? r[idx] : "";
+        });
+        outRow.push(src.fileName);
+        outRow.push(src.sheetName);
+        combinedRows.push(outRow);
+      });
+      totalRows += src.dataRows.length;
+    });
+
+    const finalHeader = headerUnion.concat(["Source File", "Sheet Name"]);
+    const finalRows = [finalHeader].concat(combinedRows);
+
+    const outWb = XLSX.utils.book_new();
+    const outWs = XLSX.utils.aoa_to_sheet(finalRows);
+    XLSX.utils.book_append_sheet(outWb, outWs, "Merged");
+
+    const wbOut = XLSX.write(outWb, { bookType: "xlsx", type: "array" });
+    generatedMergedBlob = new Blob([wbOut], { type: "application/octet-stream" });
+
+    mergeSheetCountEl.textContent = sources.length;
+    mergeRowCountEl.textContent = totalRows;
+
+    mergeDownloadBtn.style.display = "inline-block";
+    setMergeStatus("✅ Merge complete! " + sources.length + " sheet(s) combined into one.", "ok");
+  }
+  catch(err){
+    console.error(err);
+    setMergeStatus("Error.", "err");
+    alert("Something went wrong while merging:\n\n" + err.message);
+  }
+  finally{
+    mergeBtn.disabled = mergeFiles.length === 0;
+  }
+});
+
+mergeDownloadBtn.addEventListener("click", function(){
+  if (!generatedMergedBlob){ alert("Please merge the files first."); return; }
+  const url = URL.createObjectURL(generatedMergedBlob);
+  const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "Merged-" + ts + ".xlsx";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+});
+
+renderMergeFileList();
 </script>
 
 </body>
