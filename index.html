@@ -3,12 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consumer Number List</title>
+<title>Consumer Number Extractor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#0f172a;
     --card:#1e293b;
+    --card2:#243348;
     --accent:#38bdf8;
+    --green:#22c55e;
+    --red:#f87171;
     --text:#e2e8f0;
     --muted:#94a3b8;
     --border:#334155;
@@ -19,22 +23,96 @@
     font-family:'Segoe UI', Roboto, Arial, sans-serif;
     background:var(--bg);
     color:var(--text);
-    padding:24px;
+    padding:20px;
   }
-  h1{
-    font-size:1.4rem;
-    margin-bottom:4px;
-  }
-  .sub{
-    color:var(--muted);
+  h1{font-size:1.4rem; margin-bottom:4px;}
+  .sub{color:var(--muted); margin-bottom:20px; font-size:0.9rem;}
+  .section{
+    background:var(--card);
+    border-radius:12px;
+    padding:16px;
     margin-bottom:20px;
-    font-size:0.9rem;
+    border:1px solid var(--border);
   }
+  .section h2{
+    font-size:1rem;
+    color:var(--accent);
+    margin:0 0 12px 0;
+  }
+  .drop-zone{
+    border:2px dashed var(--border);
+    border-radius:10px;
+    padding:30px;
+    text-align:center;
+    color:var(--muted);
+    cursor:pointer;
+    transition:0.2s;
+  }
+  .drop-zone.dragover{
+    border-color:var(--accent);
+    background:#152238;
+    color:var(--accent);
+  }
+  input[type="file"]{display:none;}
+  .images-grid{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    margin-top:16px;
+  }
+  .image-card{
+    background:var(--card2);
+    border-radius:10px;
+    padding:10px;
+    width:220px;
+    border:1px solid var(--border);
+  }
+  .image-card img{
+    width:100%;
+    height:140px;
+    object-fit:cover;
+    border-radius:6px;
+    cursor:zoom-in;
+    display:block;
+  }
+  .image-card .name{
+    font-size:0.78rem;
+    color:var(--muted);
+    margin:8px 0 6px 0;
+    word-break:break-all;
+  }
+  .image-card textarea{
+    width:100%;
+    min-height:70px;
+    background:#0b1220;
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:6px 8px;
+    font-family:'Consolas',monospace;
+    font-size:0.85rem;
+    resize:vertical;
+  }
+  .image-card .row-actions{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:8px;
+  }
+  .small-btn{
+    padding:5px 10px;
+    font-size:0.75rem;
+    border-radius:6px;
+    border:none;
+    cursor:pointer;
+  }
+  .btn-remove{background:transparent; color:var(--red); border:1px solid var(--red);}
+  .btn-apply{background:var(--accent); color:#0f172a; font-weight:600;}
   .toolbar{
     display:flex;
     flex-wrap:wrap;
     gap:10px;
-    margin-bottom:16px;
+    margin-bottom:14px;
   }
   input[type="text"]{
     flex:1;
@@ -42,11 +120,11 @@
     padding:10px 14px;
     border-radius:8px;
     border:1px solid var(--border);
-    background:var(--card);
+    background:var(--card2);
     color:var(--text);
-    font-size:0.95rem;
+    font-size:0.9rem;
   }
-  button{
+  button.main-btn{
     padding:10px 16px;
     border-radius:8px;
     border:none;
@@ -54,153 +132,204 @@
     color:#0f172a;
     font-weight:600;
     cursor:pointer;
-    font-size:0.9rem;
+    font-size:0.88rem;
   }
-  button:hover{opacity:0.9;}
-  .count{
-    color:var(--muted);
-    margin-bottom:10px;
-    font-size:0.85rem;
+  button.main-btn.green{background:var(--green); color:#0f172a;}
+  button.main-btn:hover{opacity:0.9;}
+  .count{color:var(--muted); margin-bottom:10px; font-size:0.85rem;}
+  table{width:100%; border-collapse:collapse; background:var(--card2); border-radius:10px; overflow:hidden;}
+  th, td{padding:9px 12px; text-align:left; border-bottom:1px solid var(--border); font-size:0.88rem;}
+  th{background:#0b1220; color:var(--accent); position:sticky; top:0;}
+  tr:hover td{background:#2b3d57;}
+  .num{font-family:'Consolas', monospace; letter-spacing:0.4px;}
+  .del-btn{background:transparent; border:1px solid var(--red); color:var(--red); padding:3px 8px; border-radius:5px; font-size:0.72rem; cursor:pointer;}
+  .table-wrap{max-height:60vh; overflow:auto; border-radius:10px;}
+  #modal{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85);
+    align-items:center; justify-content:center; z-index:999; cursor:zoom-out;
   }
-  table{
-    width:100%;
-    border-collapse:collapse;
-    background:var(--card);
-    border-radius:10px;
-    overflow:hidden;
-  }
-  th, td{
-    padding:10px 14px;
-    text-align:left;
-    border-bottom:1px solid var(--border);
-    font-size:0.92rem;
-  }
-  th{
-    background:#0b1220;
-    color:var(--accent);
-    position:sticky;
-    top:0;
-  }
-  tr:hover td{
-    background:#243348;
-  }
-  .num{
-    font-family:'Consolas', monospace;
-    letter-spacing:0.5px;
-  }
-  .copy-btn{
-    padding:4px 10px;
-    font-size:0.75rem;
-    background:transparent;
-    border:1px solid var(--accent);
-    color:var(--accent);
-  }
-  .copy-btn:hover{
-    background:var(--accent);
-    color:#0f172a;
-  }
-  .table-wrap{
-    max-height:75vh;
-    overflow:auto;
-    border-radius:10px;
-  }
+  #modal img{max-width:92vw; max-height:92vh; border-radius:8px;}
+  .empty-msg{color:var(--muted); font-size:0.85rem; padding:10px 0;}
 </style>
 </head>
 <body>
 
-<h1>Consumer Number List</h1>
-<div class="sub">Indexing D.o.T. R-024 &nbsp;|&nbsp; Date: 17.08.26 &nbsp;|&nbsp; 12-digit format: 032 + 9-digit padded number</div>
+<h1>Consumer Number Extractor</h1>
+<div class="sub">Multiple images upload karke unse consumer numbers nikaliye aur Excel me export kariye &nbsp;|&nbsp; Format: 032 + 9-digit padding</div>
 
-<div class="toolbar">
-  <input type="text" id="search" placeholder="Search consumer number...">
-  <button onclick="downloadCSV()">Download CSV</button>
-  <button onclick="copyAll()">Copy All</button>
+<div class="section">
+  <h2>1. Images Upload Karein</h2>
+  <div class="drop-zone" id="dropZone">
+    📁 Yahan images drag-drop karein, ya click karke choose karein (multiple select allowed)
+  </div>
+  <input type="file" id="fileInput" accept="image/*" multiple>
+  <div class="images-grid" id="imagesGrid"></div>
 </div>
 
-<div class="count" id="count"></div>
-
-<div class="table-wrap">
-<table>
-  <thead>
-    <tr><th style="width:60px;">#</th><th>Original</th><th>Consumer Number (12-digit)</th><th style="width:80px;">Copy</th></tr>
-  </thead>
-  <tbody id="tbody"></tbody>
-</table>
+<div class="section">
+  <h2>2. Extracted Numbers Table</h2>
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Search number...">
+    <button class="main-btn" onclick="clearAll()">Clear All</button>
+    <button class="main-btn green" onclick="downloadExcel()">⬇ Download Excel (.xlsx)</button>
+    <button class="main-btn" onclick="downloadCSV()">⬇ Download CSV</button>
+  </div>
+  <div class="count" id="count"></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th style="width:50px;">#</th><th>Source Image</th><th>Original</th><th>Consumer Number (12-digit)</th><th style="width:70px;">Del</th></tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
 </div>
+
+<div id="modal" onclick="this.style.display='none'"><img id="modalImg" src=""></div>
 
 <script>
-// Original numbers as read from the handwritten register
-const rawNumbers = [
-  "107018","10149021","81333","81031","10148984","94156","10765782","81355","81356",
-  "98219","81033","98220","99124","107314","98184","98461","109694","10745852","81042",
-  "10754169","111602","98185","81290","94929","94184","99012","98214","81291","10165640",
-  "10148977","81275","81279","81917",
-  "10747668","81049","110475","94158","81185","81183","10754147","81184","108112",
-  "107017","10160896","10763422","81261","98196","111537","111549","81257","81258",
-  "111648","81247","81357","91400","10754157","98177","10750253","81053","81023",
-  "93529","111636","84600","10765659","10145090","81040",
-  "81039","129450","95893","81278","81276","111463","94587","130057","94169","111598",
-  "81288","1074898","91429","116262","81332","10754190","91430","107367","10756970",
-  "98186","98187","122308","10756969","10154183","81287","91410","10746112","10148979",
-  "81176","129680","98145","81364","98220"
-];
+let images = [];   // {id, name, url}
+let entries = [];  // {id, imageName, original, consumer}
+let imgCounter = 0;
+let entryCounter = 0;
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const imagesGrid = document.getElementById('imagesGrid');
+const tbody = document.getElementById('tbody');
+const countEl = document.getElementById('count');
+const modal = document.getElementById('modal');
+const modalImg = document.getElementById('modalImg');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+function handleFiles(fileList){
+  Array.from(fileList).forEach(file => {
+    if(!file.type.startsWith('image/')) return;
+    const id = 'img' + (imgCounter++);
+    const url = URL.createObjectURL(file);
+    images.push({id, name: file.name, url});
+    renderImages();
+  });
+}
+
+function renderImages(){
+  imagesGrid.innerHTML = '';
+  images.forEach(img => {
+    const card = document.createElement('div');
+    card.className = 'image-card';
+    card.innerHTML = `
+      <img src="${img.url}" onclick="zoomImg('${img.url}')">
+      <div class="name">${img.name}</div>
+      <textarea placeholder="Har line me ek number likhein (jaise 107018)" id="ta_${img.id}"></textarea>
+      <div class="row-actions">
+        <button class="small-btn btn-remove" onclick="removeImage('${img.id}')">Remove</button>
+        <button class="small-btn btn-apply" onclick="applyNumbers('${img.id}', '${img.name.replace(/'/g,"\\'")}')">Add to Table</button>
+      </div>
+    `;
+    imagesGrid.appendChild(card);
+  });
+}
+
+function zoomImg(url){
+  modalImg.src = url;
+  modal.style.display = 'flex';
+}
+
+function removeImage(id){
+  images = images.filter(i => i.id !== id);
+  renderImages();
+}
 
 function toConsumerNumber(n){
+  n = n.replace(/[^0-9]/g, '');
+  if(!n) return null;
+  if(n.length > 9) n = n.slice(-9);
   return "032" + n.padStart(9,"0");
 }
 
-const data = rawNumbers.map(n => ({ original:n, consumer: toConsumerNumber(n) }));
-
-const tbody = document.getElementById("tbody");
-const countEl = document.getElementById("count");
-
-function render(list){
-  tbody.innerHTML = "";
-  list.forEach((row, i) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${i+1}</td>
-      <td class="num">${row.original}</td>
-      <td class="num">${row.consumer}</td>
-      <td><button class="copy-btn" onclick="copyOne('${row.consumer}')">Copy</button></td>
-    `;
-    tbody.appendChild(tr);
+function applyNumbers(imgId, imgName){
+  const ta = document.getElementById('ta_' + imgId);
+  const lines = ta.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  lines.forEach(line => {
+    const consumer = toConsumerNumber(line);
+    if(consumer){
+      entries.push({id: 'e'+(entryCounter++), imageName: imgName, original: line, consumer});
+    }
   });
-  countEl.textContent = `Total: ${list.length} consumer numbers`;
+  ta.value = '';
+  renderTable();
 }
 
-function copyOne(text){
-  navigator.clipboard.writeText(text);
+function removeEntry(id){
+  entries = entries.filter(e => e.id !== id);
+  renderTable();
 }
 
-function copyAll(){
-  const text = data.map(d => d.consumer).join("\n");
-  navigator.clipboard.writeText(text);
-  alert("All consumer numbers copied to clipboard!");
+function renderTable(filter=''){
+  tbody.innerHTML = '';
+  const list = filter
+    ? entries.filter(e => e.original.includes(filter) || e.consumer.includes(filter))
+    : entries;
+
+  if(list.length === 0){
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-msg">Koi entry nahi hai. Upar image upload karke numbers add karein.</td></tr>`;
+  } else {
+    list.forEach((e, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td>${e.imageName}</td>
+        <td class="num">${e.original}</td>
+        <td class="num">${e.consumer}</td>
+        <td><button class="del-btn" onclick="removeEntry('${e.id}')">✕</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+  countEl.textContent = `Total: ${entries.length} consumer numbers`;
+}
+
+document.getElementById('search').addEventListener('input', e => renderTable(e.target.value.trim()));
+
+function clearAll(){
+  if(confirm('Saari entries clear kar dein?')){
+    entries = [];
+    renderTable();
+  }
+}
+
+function downloadExcel(){
+  if(entries.length === 0){ alert('Koi data nahi hai export karne ke liye.'); return; }
+  const wsData = [['S.No', 'Source Image', 'Original', 'Consumer Number']];
+  entries.forEach((e,i) => wsData.push([i+1, e.imageName, e.original, e.consumer]));
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:6},{wch:28},{wch:14},{wch:20}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Consumer Numbers');
+  XLSX.writeFile(wb, 'consumer_numbers.xlsx');
 }
 
 function downloadCSV(){
-  let csv = "S.No,Original,Consumer Number\n";
-  data.forEach((d,i) => {
-    csv += `${i+1},${d.original},${d.consumer}\n`;
-  });
-  const blob = new Blob([csv], {type:"text/csv"});
+  if(entries.length === 0){ alert('Koi data nahi hai export karne ke liye.'); return; }
+  let csv = 'S.No,Source Image,Original,Consumer Number\n';
+  entries.forEach((e,i) => csv += `${i+1},${e.imageName},${e.original},${e.consumer}\n`);
+  const blob = new Blob([csv], {type:'text/csv'});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "consumer_numbers.csv";
-  a.click();
+  const a = document.createElement('a');
+  a.href = url; a.download = 'consumer_numbers.csv'; a.click();
   URL.revokeObjectURL(url);
 }
 
-document.getElementById("search").addEventListener("input", (e) => {
-  const q = e.target.value.trim();
-  if(!q){ render(data); return; }
-  const filtered = data.filter(d => d.original.includes(q) || d.consumer.includes(q));
-  render(filtered);
-});
-
-render(data);
+renderTable();
 </script>
 
 </body>
