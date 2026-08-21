@@ -350,6 +350,26 @@
   const TEMP_ADJ_LABEL = 'Credit adjustment (Temporary)';
   const FALLBACK_DOMESTIC_CATEGORY = 'LT II DOMESTIC A'; // used when an unmatched energy-bill payer isn't in Billing Payment Status either
 
+  // Short-form category codes (as seen in Billing Payment Status / ARMS Billing) are folded into
+  // the one full category name they belong to, so they land in the same summary row instead of
+  // creating a duplicate near-identical category.
+  const CATEGORY_ALIASES = {
+    'DOM': 'LT II DOMESTIC A',
+    'DOMA': 'LT II DOMESTIC A',
+    'DOMESTIC': 'LT II DOMESTIC A',
+    'TEMP(DOM)': 'LT IX TEMPORARY SUPPLY (DOMESTIC)',
+    'TEMP (DOM)': 'LT IX TEMPORARY SUPPLY (DOMESTIC)',
+    'TEMPDOM': 'LT IX TEMPORARY SUPPLY (DOMESTIC)',
+    'TEMPORARY(DOM)': 'LT IX TEMPORARY SUPPLY (DOMESTIC)',
+    'TEMPORARY (DOM)': 'LT IX TEMPORARY SUPPLY (DOMESTIC)'
+  };
+  function normalizeCategory(cat){
+    const c = norm(cat);
+    if(!c) return c;
+    const key = c.toUpperCase().replace(/\s+/g,' ').trim();
+    return CATEGORY_ALIASES[key] || c;
+  }
+
   let lastResult = null;
 
   function generate(){
@@ -389,7 +409,7 @@
       bpMap.set(cno, {
         status: norm(row['Meter Type']) || 'UNKNOWN',
         outstanding: num(row['Outstanding']),
-        category: norm(row['Category']) || '(unspecified)'
+        category: normalizeCategory(row['Category']) || '(unspecified)'
       });
     }
 
@@ -420,7 +440,7 @@
       };
       for(const h of ARMS_PASSTHROUGH){
         if(h === 'Old Consumer No' || h === 'DTR No') continue;
-        out[h] = row[h] ?? '';
+        out[h] = h === 'Category Code Name' ? normalizeCategory(row[h]) : (row[h] ?? '');
       }
       mainRows.push(out);
     }
@@ -433,7 +453,7 @@
       return groups.get(key);
     }
     for(const r of mainRows){
-      const cat = norm(r['Category Code Name']) || '(blank)';
+      const cat = normalizeCategory(r['Category Code Name']) || '(blank)';
       const status = r['status'] === 'SMART' ? 'SMART' : 'NON_SMART';
       const g = ensureGroup(cat, status);
       g.count += 1;
@@ -471,8 +491,9 @@
     //    no separate summary row. tempAdj (grand total) is kept only for the on-screen stat/notes.
     let tempAdj = 0;
     for(const row of state.ab){
-      const cat = norm(row['Category Code Name']);
-      if(!/temporary/i.test(cat)) continue;
+      const catRaw = norm(row['Category Code Name']);
+      if(!/temporary/i.test(catRaw)) continue;
+      const cat = normalizeCategory(catRaw);
       const amt = num(row['CRADJ']);
       tempAdj += amt;
       const g = ensureGroup(cat || TEMP_ADJ_LABEL, 'SMART');
