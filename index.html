@@ -466,24 +466,22 @@
       }
     }
 
-    // 6) ARMS Billing "temporary supply" credit adjustment: sum of the CRADJ column across every
-    //    ARMS billing row whose category mentions "temporary", regardless of whether that consumer
-    //    matched Billing Payment Status. Recorded as a SMART-side payment on its own summary row.
+    // 6) ARMS Billing "temporary supply" credit adjustment: for every ARMS billing row whose category
+    //    mentions "temporary", its CRADJ is added straight into that SAME category's SMART payment —
+    //    no separate summary row. tempAdj (grand total) is kept only for the on-screen stat/notes.
     let tempAdj = 0;
     for(const row of state.ab){
       const cat = norm(row['Category Code Name']);
-      if(/temporary/i.test(cat)) tempAdj += num(row['CRADJ']);
+      if(!/temporary/i.test(cat)) continue;
+      const amt = num(row['CRADJ']);
+      tempAdj += amt;
+      const g = ensureGroup(cat || TEMP_ADJ_LABEL, 'SMART');
+      g.payment += amt;
     }
     tempAdj = round2(tempAdj);
-    if(tempAdj !== 0){
-      const g = ensureGroup(TEMP_ADJ_LABEL, 'SMART');
-      g.payment += tempAdj;
-    }
 
-    // 7) assemble summary rows — normal categories sorted alphabetically, temp-adjustment row pinned last
-    const allCats = [...new Set([...groups.values()].map(g => g.category))];
-    const categories = allCats.filter(c => c !== TEMP_ADJ_LABEL).sort();
-    if(allCats.includes(TEMP_ADJ_LABEL)) categories.push(TEMP_ADJ_LABEL);
+    // 7) assemble summary rows, sorted alphabetically by category
+    const categories = [...new Set([...groups.values()].map(g => g.category))].sort();
 
     const summaryRows = categories.map(cat=>{
       const ns = groups.get(cat+'|NON_SMART') || {count:0,cd:0,payment:0,outstanding:0};
@@ -494,7 +492,7 @@
       const totOutstanding = ns.outstanding + sm.outstanding;
       return {
         category: cat,
-        special: cat === TEMP_ADJ_LABEL,
+        special: false,
         ns: {count:ns.count, cd:round2(ns.cd), payment:round2(ns.payment), balance:round2(ns.cd-ns.payment), outstanding:round2(ns.outstanding)},
         sm: {count:sm.count, cd:round2(sm.cd), payment:round2(sm.payment), balance:round2(sm.cd-sm.payment), outstanding:round2(sm.outstanding)},
         tot: {count:totCount, cd:round2(totCd), payment:round2(totPayment), balance:round2(totCd-totPayment), outstanding:round2(totOutstanding)}
@@ -535,7 +533,7 @@
     const notes = document.getElementById('notes-list');
     notes.innerHTML = '';
     const noteItems = [
-      'ARMS Billing rows with a "temporary" category contribute ' + fmt(adj.tempAdj) + ' of CRADJ credit adjustment, booked as SMART payment on the "'+TEMP_ADJ_LABEL+'" row.',
+      'ARMS Billing rows with a "temporary" category contribute ' + fmt(adj.tempAdj) + ' of CRADJ credit adjustment, added directly into that same temporary category\'s SMART payment (no separate adjustment row).',
       adj.extraMatchedCount + ' consumer(s) paid an energy bill but have no ARMS Billing row — ' + fmt(adj.extraMatchedTotal) + ' added to payment, category/status taken from Billing Payment Status.',
       adj.extraUnmatchedCount + ' consumer(s) paid an energy bill and were not found in either ARMS Billing or Billing Payment Status — ' + fmt(adj.extraUnmatchedTotal) + ' defaulted into "' + FALLBACK_DOMESTIC_CATEGORY + '" / SMART payment.',
       'These additions only change the payment (and therefore balance) figures in the Category wise CD sheet — they do not add rows to Main List, since there is no ARMS bill to show.'
