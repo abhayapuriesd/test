@@ -350,18 +350,83 @@
   const TEMP_ADJ_LABEL = 'Credit adjustment (Temporary)';
   const FALLBACK_DOMESTIC_CATEGORY = 'LT II DOMESTIC A'; // used when an unmatched energy-bill payer isn't in Billing Payment Status either
 
-  // Short-form category codes (as seen in Billing Payment Status / ARMS Billing) are folded into
-  // the one full category name they belong to, so they land in the same summary row instead of
-  // creating a duplicate near-identical category.
+  // ARMS Billing's "Category Code Name" column is a truncated (30-char) field, so its own values
+  // never spell out the full category name. Billing Payment Status instead uses short codes.
+  // Every alias below maps BOTH forms — the BP short code and any other way we've seen the same
+  // category written — onto ONE canonical string, so that a consumer categorised "TEMP (DOM)" in
+  // Billing Payment Status lands in the exact same summary row as the (truncated) "LT IX TEMPORARY
+  // SUPPLY (DOMEST" value stamped on the matching ARMS Billing row. Where the canonical string
+  // itself is a truncated ARMS value, that's intentional — it's what's actually stored on the ARMS
+  // side, and matching it verbatim is what makes the two sources merge into one group instead of
+  // silently creating two near-duplicate categories.
   const CATEGORY_ALIASES = {
+    // ---- LT II Domestic A ----
     'DOM': 'LT II DOMESTIC A',
+    'DOM A': 'LT II DOMESTIC A',
     'DOMA': 'LT II DOMESTIC A',
     'DOMESTIC': 'LT II DOMESTIC A',
-    'TEMP(DOM)': 'LT IX TEMPORARY SUPPLY (DOMESTIC)',
-    'TEMP (DOM)': 'LT IX TEMPORARY SUPPLY (DOMESTIC)',
-    'TEMPDOM': 'LT IX TEMPORARY SUPPLY (DOMESTIC)',
-    'TEMPORARY(DOM)': 'LT IX TEMPORARY SUPPLY (DOMESTIC)',
-    'TEMPORARY (DOM)': 'LT IX TEMPORARY SUPPLY (DOMESTIC)'
+
+    // ---- LT III Domestic B (ARMS stores this with a double space, kept verbatim) ----
+    'DOM B': 'LT III  DOMESTIC B',
+    'DOMB': 'LT III  DOMESTIC B',
+
+    // ---- LT I Jeevan Dhara (Domestic) ----
+    'JD (DOM)': 'LT I JEEVAN DHARA (DOMESTIC)',
+    'JD(DOM)': 'LT I JEEVAN DHARA (DOMESTIC)',
+    'JEEVAN DHARA': 'LT I JEEVAN DHARA (DOMESTIC)',
+
+    // ---- LT IV Commercial ----
+    'COM': 'LT IV COMMERCIAL',
+    'COMMERCIAL': 'LT IV COMMERCIAL',
+
+    // ---- LT V(B) General Purpose (Educational) — ARMS value truncated at 30 chars ----
+    'GEN PUR (EDU)': 'LT V(B) GENERAL PURPOSE (EDUCA',
+    'GEN PUR(EDU)': 'LT V(B) GENERAL PURPOSE (EDUCA',
+    'GENERAL PURPOSE (EDU)': 'LT V(B) GENERAL PURPOSE (EDUCA',
+
+    // ---- LT V(A) General Purpose (Other) — ARMS value truncated at 30 chars ----
+    'GEN PUR (OTH)': 'LT V(A) GENERAL PURPOSE (OTHER',
+    'GEN PUR(OTH)': 'LT V(A) GENERAL PURPOSE (OTHER',
+    'GENERAL PURPOSE (OTH)': 'LT V(A) GENERAL PURPOSE (OTHER',
+
+    // ---- LT VII Agriculture ----
+    'AGRI': 'LT VII AGRICULTURE',
+    'AGRICULTURE': 'LT VII AGRICULTURE',
+
+    // ---- LT VIII Small Industries (Rural) — ARMS value truncated at 30 chars ----
+    'SM IND(R)': 'LT VIII SMALL INDUSTRIES (RURA',
+    'SM IND (R)': 'LT VIII SMALL INDUSTRIES (RURA',
+
+    // ---- HT III Public Water Works ----
+    'PUB WTR': 'HT III PUBLIC WATER WORKS',
+    'PUBLIC WATER WORKS': 'HT III PUBLIC WATER WORKS',
+
+    // ---- LT IX Temporary Supply (Domestic) — ARMS value truncated at 30 chars ----
+    'TEMP (DOM)': 'LT IX TEMPORARY SUPPLY (DOMEST',
+    'TEMP(DOM)': 'LT IX TEMPORARY SUPPLY (DOMEST',
+    'TEMPDOM': 'LT IX TEMPORARY SUPPLY (DOMEST',
+    'TEMPORARY(DOM)': 'LT IX TEMPORARY SUPPLY (DOMEST',
+    'TEMPORARY (DOM)': 'LT IX TEMPORARY SUPPLY (DOMEST',
+
+    // ---- LT IX Temporary Supply (Non-Domestic) — ARMS value truncated at 30 chars ----
+    'TEMP (N-DOM)': 'LT IX TEMPORARY SUPPLY (NON DO',
+    'TEMP(N-DOM)': 'LT IX TEMPORARY SUPPLY (NON DO',
+    'TEMP (NON-DOM)': 'LT IX TEMPORARY SUPPLY (NON DO',
+    'TEMPORARY (NON DOM)': 'LT IX TEMPORARY SUPPLY (NON DO',
+
+    // ---- LT IX Temporary Supply (Agriculture) — this one is NOT truncated on the ARMS side ----
+    'TEMP (AGRI)': 'LT IX TEMPORARY SUPPLY (AGRICULTURE)',
+    'TEMP(AGRI)': 'LT IX TEMPORARY SUPPLY (AGRICULTURE)',
+    'TEMPORARY (AGRI)': 'LT IX TEMPORARY SUPPLY (AGRICULTURE)'
+
+    // Not merged — no matching ARMS Billing value has been seen yet for these Billing Payment
+    // Status codes, so guessing the truncated ARMS spelling would risk creating a WRONG merge
+    // instead of no merge. They currently pass through as their own category row:
+    //   'SM IND(U)'    (Small Industries — Urban?)
+    //   'VEH CHARG'    (EV / Vehicle Charging?)
+    //   'HT V(B) IND'  (HT Industrial?)
+    // If any of these ever appear in an ARMS Billing file, tell me the exact ARMS spelling
+    // (copy-paste it) and I'll add the alias.
   };
   function normalizeCategory(cat){
     const c = norm(cat);
