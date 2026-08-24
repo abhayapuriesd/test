@@ -234,6 +234,13 @@
     </div>
 
     <div class="panel-head" style="margin-top:24px;">
+      <h2>Feeder wise CD — preview</h2>
+    </div>
+    <div class="tablewrap">
+      <table id="preview-table-feeder"></table>
+    </div>
+
+    <div class="panel-head" style="margin-top:24px;">
       <h2>Notes on this run</h2>
     </div>
     <div class="tablewrap" style="padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;">
@@ -244,8 +251,11 @@
   <footer>
     Files are parsed entirely in your browser using SheetJS — nothing is uploaded anywhere.
     Consumer numbers are matched as text (leading zeros preserved) across all three reports.
-    The downloaded workbook contains two sheets: <code>Category wise CD</code> (category × SMART/NON_SMART summary)
-    and <code>Main List</code> (one row per matched consumer, ARMS billing columns plus status/cd/payment/outstanding).
+    The downloaded workbook contains four sheets: <code>Category wise CD</code> and <code>Feeder wise CD</code>
+    (each a category/feeder × SMART/NON_SMART summary), <code>Main List</code> (one row per matched consumer,
+    ARMS billing columns plus status/cd/payment/outstanding/feeder), and <code>Extra Payments (No ARMS Bill)</code>.
+    Feeder comes from Billing Payment Status's <code>Feeder Name</code> column; any matched payment whose consumer
+    has no feeder on record falls into <code>DUMMY FEEDER</code>.
   </footer>
 </div>
 
@@ -349,6 +359,7 @@
 
   const TEMP_ADJ_LABEL = 'Credit adjustment (Temporary)';
   const FALLBACK_DOMESTIC_CATEGORY = 'LT II DOMESTIC A'; // used when an unmatched energy-bill payer isn't in Billing Payment Status either
+  const DUMMY_FEEDER = 'DUMMY FEEDER'; // used when a consumer's feeder can't be found in Billing Payment Status
 
   // ARMS Billing's "Category Code Name" column is a truncated (30-char) field, so its own values
   // never spell out the full category name. Billing Payment Status instead uses short codes.
@@ -474,7 +485,8 @@
       bpMap.set(cno, {
         status: norm(row['Meter Type']) || 'UNKNOWN',
         outstanding: num(row['Outstanding']),
-        category: normalizeCategory(row['Category']) || '(unspecified)'
+        category: normalizeCategory(row['Category']) || '(unspecified)',
+        feeder: norm(row['Feeder Name']) || DUMMY_FEEDER
       });
     }
 
@@ -501,7 +513,8 @@
         'outstanding': round2(bp.outstanding),
         'Old Consumer No': row['Old Consumer No'] ?? '',
         'DTR No': row['DTR No'] ?? '',
-        'sdfg': row['DTR No'] ?? ''
+        'sdfg': row['DTR No'] ?? '',
+        '__feeder': bp.feeder
       };
       for(const h of ARMS_PASSTHROUGH){
         if(h === 'Old Consumer No' || h === 'DTR No') continue;
@@ -510,21 +523,31 @@
       mainRows.push(out);
     }
 
-    // 4) category x status summary, from matched consumers
-    const groups = new Map(); // key: category|status -> {category,status,count,cd,payment,outstanding}
-    function ensureGroup(cat, status){
-      const key = cat + '|' + status;
-      if(!groups.has(key)) groups.set(key, {category:cat, status, count:0, cd:0, payment:0, outstanding:0});
-      return groups.get(key);
+    // 4) category x status AND feeder x status summaries, from matched consumers.
+    //    Same shape, two independent dimensions — built together since they share the same source rows.
+    const catGroups = new Map();    // key: category|status -> {label,status,count,cd,payment,outstanding}
+    const feederGroups = new Map(); // key: feeder|status   -> {label,status,count,cd,payment,outstanding}
+    function ensureGroupIn(map, label, status){
+      const key = label + '|' + status;
+      if(!map.has(key)) map.set(key, {label, status, count:0, cd:0, payment:0, outstanding:0});
+      return map.get(key);
     }
+    function ensureGroup(cat, status){ return ensureGroupIn(catGroups, cat, status); }
+    function ensureFeederGroup(feeder, status){ return ensureGroupIn(feederGroups, feeder, status); }
     for(const r of mainRows){
       const cat = normalizeCategory(r['Category Code Name']) || '(blank)';
+      const feeder = r['__feeder'] || DUMMY_FEEDER;
       const status = r['status'] === 'SMART' ? 'SMART' : 'NON_SMART';
       const g = ensureGroup(cat, status);
       g.count += 1;
       g.cd += r['cd'];
       g.payment += r['payment'];
       g.outstanding += r['outstanding'];
+      const fg = ensureFeederGroup(feeder, status);
+      fg.count += 1;
+      fg.cd += r['cd'];
+      fg.payment += r['payment'];
+      fg.outstanding += r['outstanding'];
     }
 
     // 5) energy-bill payers from All Collection who never appear in ARMS Billing at all.
@@ -541,13 +564,17 @@
         const status = b.status === 'SMART' ? 'SMART' : 'NON_SMART';
         const g = ensureGroup(b.category, status);
         g.payment += amt;
+        const fg = ensureFeederGroup(b.feeder, status);
+        fg.payment += amt;
         extraMatchedTotal += amt; extraMatchedCount += 1;
-        extraDetail.push({consumer:cno, category:b.category, status, payment:round2(amt), source:'Billing Payment Status'});
+        extraDetail.push({consumer:cno, category:b.category, feeder:b.feeder, status, payment:round2(amt), source:'Billing Payment Status'});
       } else {
         const g = ensureGroup(FALLBACK_DOMESTIC_CATEGORY, 'SMART');
         g.payment += amt;
+        const fg = ensureFeederGroup(DUMMY_FEEDER, 'SMART');
+        fg.payment += amt;
         extraUnmatchedTotal += amt; extraUnmatchedCount += 1;
-        extraDetail.push({consumer:cno, category:FALLBACK_DOMESTIC_CATEGORY, status:'SMART', payment:round2(amt), source:'Not found anywhere — defaulted'});
+        extraDetail.push({consumer:cno, category:FALLBACK_DOMESTIC_CATEGORY, feeder:DUMMY_FEEDER, status:'SMART', payment:round2(amt), source:'Not found anywhere — defaulted'});
       }
     }
 
@@ -563,40 +590,51 @@
       tempAdj += amt;
       const g = ensureGroup(cat || TEMP_ADJ_LABEL, 'SMART');
       g.payment += amt;
+      const cno = norm(row['Consumer No']);
+      const b = bpMap.get(cno);
+      const fg = ensureFeederGroup(b ? b.feeder : DUMMY_FEEDER, 'SMART');
+      fg.payment += amt;
     }
     tempAdj = round2(tempAdj);
 
-    // 7) assemble summary rows, sorted alphabetically by category
-    const categories = [...new Set([...groups.values()].map(g => g.category))].sort();
+    // 7) assemble summary rows (sorted alphabetically) + grand total — same shape for category and feeder.
+    function buildSummary(groupsMap){
+      const labels = [...new Set([...groupsMap.values()].map(g => g.label))].sort();
+      const summaryRows = labels.map(label=>{
+        const ns = groupsMap.get(label+'|NON_SMART') || {count:0,cd:0,payment:0,outstanding:0};
+        const sm = groupsMap.get(label+'|SMART') || {count:0,cd:0,payment:0,outstanding:0};
+        const totCount = ns.count + sm.count;
+        const totCd = ns.cd + sm.cd;
+        const totPayment = ns.payment + sm.payment;
+        const totOutstanding = ns.outstanding + sm.outstanding;
+        return {
+          label,
+          special: false,
+          ns: {count:ns.count, cd:round2(ns.cd), payment:round2(ns.payment), balance:round2(ns.cd-ns.payment), outstanding:round2(ns.outstanding)},
+          sm: {count:sm.count, cd:round2(sm.cd), payment:round2(sm.payment), balance:round2(sm.cd-sm.payment), outstanding:round2(sm.outstanding)},
+          tot: {count:totCount, cd:round2(totCd), payment:round2(totPayment), balance:round2(totCd-totPayment), outstanding:round2(totOutstanding)}
+        };
+      });
+      const grand = summaryRows.reduce((g,r)=>{
+        g.ns.count+=r.ns.count; g.ns.cd+=r.ns.cd; g.ns.payment+=r.ns.payment; g.ns.outstanding+=r.ns.outstanding;
+        g.sm.count+=r.sm.count; g.sm.cd+=r.sm.cd; g.sm.payment+=r.sm.payment; g.sm.outstanding+=r.sm.outstanding;
+        g.tot.count+=r.tot.count; g.tot.cd+=r.tot.cd; g.tot.payment+=r.tot.payment; g.tot.outstanding+=r.tot.outstanding;
+        return g;
+      }, {ns:{count:0,cd:0,payment:0,outstanding:0}, sm:{count:0,cd:0,payment:0,outstanding:0}, tot:{count:0,cd:0,payment:0,outstanding:0}});
+      grand.ns.balance = round2(grand.ns.cd - grand.ns.payment);
+      grand.sm.balance = round2(grand.sm.cd - grand.sm.payment);
+      grand.tot.balance = round2(grand.tot.cd - grand.tot.payment);
+      return {summaryRows, grand};
+    }
 
-    const summaryRows = categories.map(cat=>{
-      const ns = groups.get(cat+'|NON_SMART') || {count:0,cd:0,payment:0,outstanding:0};
-      const sm = groups.get(cat+'|SMART') || {count:0,cd:0,payment:0,outstanding:0};
-      const totCount = ns.count + sm.count;
-      const totCd = ns.cd + sm.cd;
-      const totPayment = ns.payment + sm.payment;
-      const totOutstanding = ns.outstanding + sm.outstanding;
-      return {
-        category: cat,
-        special: false,
-        ns: {count:ns.count, cd:round2(ns.cd), payment:round2(ns.payment), balance:round2(ns.cd-ns.payment), outstanding:round2(ns.outstanding)},
-        sm: {count:sm.count, cd:round2(sm.cd), payment:round2(sm.payment), balance:round2(sm.cd-sm.payment), outstanding:round2(sm.outstanding)},
-        tot: {count:totCount, cd:round2(totCd), payment:round2(totPayment), balance:round2(totCd-totPayment), outstanding:round2(totOutstanding)}
-      };
-    });
-
-    const grand = summaryRows.reduce((g,r)=>{
-      g.ns.count+=r.ns.count; g.ns.cd+=r.ns.cd; g.ns.payment+=r.ns.payment; g.ns.outstanding+=r.ns.outstanding;
-      g.sm.count+=r.sm.count; g.sm.cd+=r.sm.cd; g.sm.payment+=r.sm.payment; g.sm.outstanding+=r.sm.outstanding;
-      g.tot.count+=r.tot.count; g.tot.cd+=r.tot.cd; g.tot.payment+=r.tot.payment; g.tot.outstanding+=r.tot.outstanding;
-      return g;
-    }, {ns:{count:0,cd:0,payment:0,outstanding:0}, sm:{count:0,cd:0,payment:0,outstanding:0}, tot:{count:0,cd:0,payment:0,outstanding:0}});
-    grand.ns.balance = round2(grand.ns.cd - grand.ns.payment);
-    grand.sm.balance = round2(grand.sm.cd - grand.sm.payment);
-    grand.tot.balance = round2(grand.tot.cd - grand.tot.payment);
+    const catSummary = buildSummary(catGroups);
+    const feederSummary = buildSummary(feederGroups);
 
     return {
-      mainRows, summaryRows, grand, extraDetail,
+      mainRows,
+      summaryRows: catSummary.summaryRows, grand: catSummary.grand,
+      feederSummaryRows: feederSummary.summaryRows, feederGrand: feederSummary.grand,
+      extraDetail,
       adjustments: { tempAdj, extraMatchedTotal:round2(extraMatchedTotal), extraMatchedCount, extraUnmatchedTotal:round2(extraUnmatchedTotal), extraUnmatchedCount }
     };
   }
@@ -619,10 +657,11 @@
     const notes = document.getElementById('notes-list');
     notes.innerHTML = '';
     const noteItems = [
-      'ARMS Billing rows with a "temporary" category contribute ' + fmt(adj.tempAdj) + ' of CRADJ credit adjustment, added directly into that same temporary category\'s SMART payment (no separate adjustment row).',
-      adj.extraMatchedCount + ' consumer(s) paid an energy bill but have no ARMS Billing row — ' + fmt(adj.extraMatchedTotal) + ' added to payment, category/status taken from Billing Payment Status.',
-      adj.extraUnmatchedCount + ' consumer(s) paid an energy bill and were not found in either ARMS Billing or Billing Payment Status — ' + fmt(adj.extraUnmatchedTotal) + ' defaulted into "' + FALLBACK_DOMESTIC_CATEGORY + '" / SMART payment.',
-      'These additions only change the payment (and therefore balance) figures in the Category wise CD sheet — they do not add rows to Main List, since there is no ARMS bill to show.'
+      'ARMS Billing rows with a "temporary" category contribute ' + fmt(adj.tempAdj) + ' of CRADJ credit adjustment, added directly into that same temporary category\'s (and its consumer\'s feeder\'s) SMART payment (no separate adjustment row).',
+      adj.extraMatchedCount + ' consumer(s) paid an energy bill but have no ARMS Billing row — ' + fmt(adj.extraMatchedTotal) + ' added to payment, category/feeder/status taken from Billing Payment Status.',
+      adj.extraUnmatchedCount + ' consumer(s) paid an energy bill and were not found in either ARMS Billing or Billing Payment Status — ' + fmt(adj.extraUnmatchedTotal) + ' defaulted into "' + FALLBACK_DOMESTIC_CATEGORY + '" category / "' + DUMMY_FEEDER + '" feeder / SMART payment.',
+      'These additions only change the payment (and therefore balance) figures in the Category wise CD and Feeder wise CD sheets — they do not add rows to Main List, since there is no ARMS bill to show.',
+      'Feeder wise CD groups every matched consumer by Billing Payment Status\'s Feeder Name; consumers with no feeder on record fall into "' + DUMMY_FEEDER + '".'
     ];
     for(const t of noteItems){
       const li = document.createElement('li');
@@ -630,23 +669,27 @@
       notes.appendChild(li);
     }
 
-    const table = document.getElementById('preview-table');
-    let html = '<thead><tr><th>Category</th>' +
+    renderSummaryTable('preview-table', 'Category', result.summaryRows, result.grand);
+    renderSummaryTable('preview-table-feeder', 'Feeder', result.feederSummaryRows, result.feederGrand);
+  }
+
+  function renderSummaryTable(tableId, labelHeader, summaryRows, grand){
+    const table = document.getElementById(tableId);
+    let html = '<thead><tr><th>'+escapeHtml(labelHeader)+'</th>' +
       '<th>NS Count</th><th>NS CD</th><th>NS Payment</th><th>NS Balance</th><th>NS Outstanding</th>' +
       '<th>S Count</th><th>S CD</th><th>S Payment</th><th>S Balance</th><th>S Outstanding</th>' +
       '<th>Tot Count</th><th>Tot CD</th><th>Tot Payment</th><th>Tot Balance</th><th>Tot Outstanding</th></tr></thead><tbody>';
-    for(const r of result.summaryRows){
+    for(const r of summaryRows){
       const cls = r.special ? ' class="grand"' : '';
-      html += '<tr'+cls+'><td>'+escapeHtml(r.category)+'</td>' +
+      html += '<tr'+cls+'><td>'+escapeHtml(r.label)+'</td>' +
         '<td>'+(r.ns.count||'')+'</td><td>'+(r.ns.cd?fmt(r.ns.cd):'')+'</td><td>'+(r.ns.payment?fmt(r.ns.payment):'')+'</td><td>'+(r.ns.balance?fmt(r.ns.balance):'')+'</td><td>'+(r.ns.outstanding?fmt(r.ns.outstanding):'')+'</td>' +
         '<td>'+(r.sm.count||'')+'</td><td>'+(r.sm.cd?fmt(r.sm.cd):'')+'</td><td>'+(r.sm.payment?fmt(r.sm.payment):'')+'</td><td>'+(r.sm.balance?fmt(r.sm.balance):'')+'</td><td>'+(r.sm.outstanding?fmt(r.sm.outstanding):'')+'</td>' +
         '<td>'+r.tot.count+'</td><td>'+fmt(r.tot.cd)+'</td><td>'+fmt(r.tot.payment)+'</td><td>'+fmt(r.tot.balance)+'</td><td>'+fmt(r.tot.outstanding)+'</td></tr>';
     }
-    const g = result.grand;
     html += '<tr class="grand"><td>Grand Total</td>' +
-      '<td>'+g.ns.count+'</td><td>'+fmt(g.ns.cd)+'</td><td>'+fmt(g.ns.payment)+'</td><td>'+fmt(g.ns.balance)+'</td><td>'+fmt(g.ns.outstanding)+'</td>' +
-      '<td>'+g.sm.count+'</td><td>'+fmt(g.sm.cd)+'</td><td>'+fmt(g.sm.payment)+'</td><td>'+fmt(g.sm.balance)+'</td><td>'+fmt(g.sm.outstanding)+'</td>' +
-      '<td>'+g.tot.count+'</td><td>'+fmt(g.tot.cd)+'</td><td>'+fmt(g.tot.payment)+'</td><td>'+fmt(g.tot.balance)+'</td><td>'+fmt(g.tot.outstanding)+'</td></tr>';
+      '<td>'+grand.ns.count+'</td><td>'+fmt(grand.ns.cd)+'</td><td>'+fmt(grand.ns.payment)+'</td><td>'+fmt(grand.ns.balance)+'</td><td>'+fmt(grand.ns.outstanding)+'</td>' +
+      '<td>'+grand.sm.count+'</td><td>'+fmt(grand.sm.cd)+'</td><td>'+fmt(grand.sm.payment)+'</td><td>'+fmt(grand.sm.balance)+'</td><td>'+fmt(grand.sm.outstanding)+'</td>' +
+      '<td>'+grand.tot.count+'</td><td>'+fmt(grand.tot.cd)+'</td><td>'+fmt(grand.tot.payment)+'</td><td>'+fmt(grand.tot.balance)+'</td><td>'+fmt(grand.tot.outstanding)+'</td></tr>';
     html += '</tbody>';
     table.innerHTML = html;
   }
@@ -698,105 +741,117 @@
       wb.creator = 'Categorywise CD Builder';
       wb.created = new Date();
 
-      // ================= Sheet 1: Category wise CD =================
-      const ws1 = wb.addWorksheet('Category wise CD', {views:[{state:'frozen', ySplit:2}]});
       const NUM_FMT = '#,##0.00';
-      const cols1 = [38,12,14,13,14,13,12,14,13,14,13,12,14,13,14,13];
-      ws1.columns = cols1.map(w => ({width:w}));
 
-      ws1.mergeCells('A1:A2');
-      ws1.mergeCells('B1:F1');
-      ws1.mergeCells('G1:K1');
-      ws1.mergeCells('L1:L2');
-      ws1.mergeCells('M1:M2');
-      ws1.mergeCells('N1:N2');
-      ws1.mergeCells('O1:O2');
-      ws1.mergeCells('P1:P2');
+      // Builds one "<Something> wise CD" sheet (Category wise CD / Feeder wise CD) — same layout,
+      // just a different first-column label and a different set of summary rows.
+      function buildCdSheet(sheetName, labelHeader, summaryRows){
+        const ws1 = wb.addWorksheet(sheetName, {views:[{state:'frozen', ySplit:2}]});
+        const cols1 = [38,12,14,13,14,13,12,14,13,14,13,12,14,13,14,13];
+        ws1.columns = cols1.map(w => ({width:w}));
 
-      const h1 = ws1.getRow(1);
-      h1.getCell(1).value  = 'Category';
-      h1.getCell(2).value  = 'NON_SMART';
-      h1.getCell(7).value  = 'SMART';
-      h1.getCell(12).value = 'No of Consumes';
-      h1.getCell(13).value = 'Current Demand';
-      h1.getCell(14).value = 'payment';
-      h1.getCell(15).value = 'Balance';
-      h1.getCell(16).value = 'Outstanding';
-      const h2 = ws1.getRow(2);
-      const subHeaders = ['No of Consumes','Current Demand','payment','Balance','Outstanding'];
-      subHeaders.forEach((label, i) => { h2.getCell(2+i).value = label; });   // B..F under NON_SMART
-      subHeaders.forEach((label, i) => { h2.getCell(7+i).value = label; });   // G..K under SMART
-      for(const r of [h1,h2]){
-        r.eachCell({includeEmpty:true}, cell => styleHeaderCell(cell));
-        r.height = 20;
-      }
+        ws1.mergeCells('A1:A2');
+        ws1.mergeCells('B1:F1');
+        ws1.mergeCells('G1:K1');
+        ws1.mergeCells('L1:L2');
+        ws1.mergeCells('M1:M2');
+        ws1.mergeCells('N1:N2');
+        ws1.mergeCells('O1:O2');
+        ws1.mergeCells('P1:P2');
 
-      let rIdx = 3;
-      lastResult.summaryRows.forEach((r, i) => {
-        const row = ws1.getRow(rIdx);
-        const nsCount = r.ns.count || null, nsCd = r.ns.cd || null, nsPayment = r.ns.payment || null, nsOut = r.ns.outstanding || null;
-        const smCount = r.sm.count || null, smCd = r.sm.cd || null, smPayment = r.sm.payment || null, smOut = r.sm.outstanding || null;
-        row.getCell(1).value = r.category;
-        row.getCell(2).value = nsCount;
-        row.getCell(3).value = nsCd;
-        row.getCell(4).value = nsPayment;
-        row.getCell(5).value = { formula: `C${rIdx}-D${rIdx}` };            // NS Balance = NS cd - NS payment
-        row.getCell(6).value = nsOut;
-        row.getCell(7).value = smCount;
-        row.getCell(8).value = smCd;
-        row.getCell(9).value = smPayment;
-        row.getCell(10).value = { formula: `H${rIdx}-I${rIdx}` };           // SMART Balance = SMART cd - SMART payment
-        row.getCell(11).value = smOut;
-        row.getCell(12).value = { formula: `B${rIdx}+G${rIdx}` };           // Total count
-        row.getCell(13).value = { formula: `C${rIdx}+H${rIdx}` };           // Total cd
-        row.getCell(14).value = { formula: `D${rIdx}+I${rIdx}` };           // Total payment
-        row.getCell(15).value = { formula: `M${rIdx}-N${rIdx}` };           // Total balance
-        row.getCell(16).value = { formula: `F${rIdx}+K${rIdx}` };           // Total outstanding
+        const h1 = ws1.getRow(1);
+        h1.getCell(1).value  = labelHeader;
+        h1.getCell(2).value  = 'NON_SMART';
+        h1.getCell(7).value  = 'SMART';
+        h1.getCell(12).value = 'No of Consumes';
+        h1.getCell(13).value = 'Current Demand';
+        h1.getCell(14).value = 'payment';
+        h1.getCell(15).value = 'Balance';
+        h1.getCell(16).value = 'Outstanding';
+        const h2 = ws1.getRow(2);
+        const subHeaders = ['No of Consumes','Current Demand','payment','Balance','Outstanding'];
+        subHeaders.forEach((label, i) => { h2.getCell(2+i).value = label; });   // B..F under NON_SMART
+        subHeaders.forEach((label, i) => { h2.getCell(7+i).value = label; });   // G..K under SMART
+        for(const r of [h1,h2]){
+          r.eachCell({includeEmpty:true}, cell => styleHeaderCell(cell));
+          r.height = 20;
+        }
 
-        const fill = r.special ? CLR_SPECIAL_FILL : (i % 2 === 1 ? CLR_BAND_FILL : null);
-        row.eachCell({includeEmpty:true}, (cell, colNum) => {
+        let rIdx = 3;
+        summaryRows.forEach((r, i) => {
+          const row = ws1.getRow(rIdx);
+          const nsCount = r.ns.count || null, nsCd = r.ns.cd || null, nsPayment = r.ns.payment || null, nsOut = r.ns.outstanding || null;
+          const smCount = r.sm.count || null, smCd = r.sm.cd || null, smPayment = r.sm.payment || null, smOut = r.sm.outstanding || null;
+          row.getCell(1).value = r.label;
+          row.getCell(2).value = nsCount;
+          row.getCell(3).value = nsCd;
+          row.getCell(4).value = nsPayment;
+          row.getCell(5).value = { formula: `C${rIdx}-D${rIdx}` };            // NS Balance = NS cd - NS payment
+          row.getCell(6).value = nsOut;
+          row.getCell(7).value = smCount;
+          row.getCell(8).value = smCd;
+          row.getCell(9).value = smPayment;
+          row.getCell(10).value = { formula: `H${rIdx}-I${rIdx}` };           // SMART Balance = SMART cd - SMART payment
+          row.getCell(11).value = smOut;
+          row.getCell(12).value = { formula: `B${rIdx}+G${rIdx}` };           // Total count
+          row.getCell(13).value = { formula: `C${rIdx}+H${rIdx}` };           // Total cd
+          row.getCell(14).value = { formula: `D${rIdx}+I${rIdx}` };           // Total payment
+          row.getCell(15).value = { formula: `M${rIdx}-N${rIdx}` };           // Total balance
+          row.getCell(16).value = { formula: `F${rIdx}+K${rIdx}` };           // Total outstanding
+
+          const fill = r.special ? CLR_SPECIAL_FILL : (i % 2 === 1 ? CLR_BAND_FILL : null);
+          row.eachCell({includeEmpty:true}, (cell, colNum) => {
+            styleDataCell(cell, {
+              align: colNum === 1 ? 'left' : 'right',
+              fill: fill,
+              numFmt: colNum === 1 ? undefined : (colNum===2||colNum===7||colNum===12 ? '#,##0' : NUM_FMT),
+              bold: colNum >= 12 // total columns bold
+            });
+          });
+          if(r.special) row.font = {italic:true};
+          rIdx++;
+        });
+
+        const firstDataRow = 3, lastDataRow = rIdx - 1;
+        const grandRow = ws1.getRow(rIdx);
+        grandRow.getCell(1).value = 'Grand Total';
+        grandRow.getCell('B').value = { formula: `SUM(B${firstDataRow}:B${lastDataRow})` };
+        grandRow.getCell('C').value = { formula: `SUM(C${firstDataRow}:C${lastDataRow})` };
+        grandRow.getCell('D').value = { formula: `SUM(D${firstDataRow}:D${lastDataRow})` };
+        grandRow.getCell('E').value = { formula: `C${rIdx}-D${rIdx}` };
+        grandRow.getCell('F').value = { formula: `SUM(F${firstDataRow}:F${lastDataRow})` };
+        grandRow.getCell('G').value = { formula: `SUM(G${firstDataRow}:G${lastDataRow})` };
+        grandRow.getCell('H').value = { formula: `SUM(H${firstDataRow}:H${lastDataRow})` };
+        grandRow.getCell('I').value = { formula: `SUM(I${firstDataRow}:I${lastDataRow})` };
+        grandRow.getCell('J').value = { formula: `H${rIdx}-I${rIdx}` };
+        grandRow.getCell('K').value = { formula: `SUM(K${firstDataRow}:K${lastDataRow})` };
+        grandRow.getCell('L').value = { formula: `B${rIdx}+G${rIdx}` };
+        grandRow.getCell('M').value = { formula: `C${rIdx}+H${rIdx}` };
+        grandRow.getCell('N').value = { formula: `D${rIdx}+I${rIdx}` };
+        grandRow.getCell('O').value = { formula: `M${rIdx}-N${rIdx}` };
+        grandRow.getCell('P').value = { formula: `F${rIdx}+K${rIdx}` };
+        grandRow.eachCell({includeEmpty:true}, (cell, colNum) => {
           styleDataCell(cell, {
             align: colNum === 1 ? 'left' : 'right',
-            fill: fill,
-            numFmt: colNum === 1 ? undefined : (colNum===2||colNum===7||colNum===12 ? '#,##0' : NUM_FMT),
-            bold: colNum >= 12 // total columns bold
+            fill: CLR_GRAND_FILL,
+            fontColor: CLR_GRAND_FONT,
+            bold: true,
+            numFmt: colNum === 1 ? undefined : (colNum===2||colNum===7||colNum===12 ? '#,##0' : NUM_FMT)
           });
         });
-        if(r.special) row.font = {italic:true};
-        rIdx++;
-      });
+        grandRow.height = 20;
+        ws1.autoFilter = { from:{row:2, column:1}, to:{row:2, column:16} };
+        return ws1;
+      }
 
-      const firstDataRow = 3, lastDataRow = rIdx - 1;
-      const grandRow = ws1.getRow(rIdx);
-      grandRow.getCell(1).value = 'Grand Total';
-      grandRow.getCell('B').value = { formula: `SUM(B${firstDataRow}:B${lastDataRow})` };
-      grandRow.getCell('C').value = { formula: `SUM(C${firstDataRow}:C${lastDataRow})` };
-      grandRow.getCell('D').value = { formula: `SUM(D${firstDataRow}:D${lastDataRow})` };
-      grandRow.getCell('E').value = { formula: `C${rIdx}-D${rIdx}` };
-      grandRow.getCell('F').value = { formula: `SUM(F${firstDataRow}:F${lastDataRow})` };
-      grandRow.getCell('G').value = { formula: `SUM(G${firstDataRow}:G${lastDataRow})` };
-      grandRow.getCell('H').value = { formula: `SUM(H${firstDataRow}:H${lastDataRow})` };
-      grandRow.getCell('I').value = { formula: `SUM(I${firstDataRow}:I${lastDataRow})` };
-      grandRow.getCell('J').value = { formula: `H${rIdx}-I${rIdx}` };
-      grandRow.getCell('K').value = { formula: `SUM(K${firstDataRow}:K${lastDataRow})` };
-      grandRow.getCell('L').value = { formula: `B${rIdx}+G${rIdx}` };
-      grandRow.getCell('M').value = { formula: `C${rIdx}+H${rIdx}` };
-      grandRow.getCell('N').value = { formula: `D${rIdx}+I${rIdx}` };
-      grandRow.getCell('O').value = { formula: `M${rIdx}-N${rIdx}` };
-      grandRow.getCell('P').value = { formula: `F${rIdx}+K${rIdx}` };
-      grandRow.eachCell({includeEmpty:true}, (cell, colNum) => {
-        styleDataCell(cell, {
-          align: colNum === 1 ? 'left' : 'right',
-          fill: CLR_GRAND_FILL,
-          fontColor: CLR_GRAND_FONT,
-          bold: true,
-          numFmt: colNum === 1 ? undefined : (colNum===2||colNum===7||colNum===12 ? '#,##0' : NUM_FMT)
-        });
-      });
-      grandRow.height = 20;
-      ws1.autoFilter = { from:{row:2, column:1}, to:{row:2, column:16} };
+      // ================= Sheet 1: Category wise CD =================
+      buildCdSheet('Category wise CD', 'Category', lastResult.summaryRows);
 
-      // ================= Sheet 2: Main List =================
+      // ================= Sheet 2: Feeder wise CD =================
+      buildCdSheet('Feeder wise CD', 'Feeder', lastResult.feederSummaryRows);
+
+      // ================= Sheet 3: Main List =================
+      // (Sheet order in the workbook: 1 Category wise CD, 2 Feeder wise CD, 3 Main List, 4 Extra Payments)
       const ws2 = wb.addWorksheet('Main List', {views:[{state:'frozen', ySplit:1}]});
       ws2.columns = MAIN_LIST_HEADERS.map(h => ({
         header: h,
@@ -819,28 +874,29 @@
       });
       ws2.autoFilter = { from:{row:1, column:1}, to:{row:1, column:MAIN_LIST_HEADERS.length} };
 
-      // ================= Sheet 3: Extra payments audit trail =================
+      // ================= Sheet 5: Extra payments audit trail =================
       if(lastResult.extraDetail.length){
         const ws3 = wb.addWorksheet('Extra Payments (No ARMS Bill)', {views:[{state:'frozen', ySplit:1}]});
-        const headers3 = ['Consumer No','Category used','SMART/NON_SMART','Payment amount','Source of category/status'];
+        const headers3 = ['Consumer No','Category used','Feeder used','SMART/NON_SMART','Payment amount','Source of category/feeder/status'];
         ws3.columns = [
           {header:headers3[0], width:18},
           {header:headers3[1], width:32},
-          {header:headers3[2], width:16},
+          {header:headers3[2], width:26},
           {header:headers3[3], width:16},
-          {header:headers3[4], width:32}
+          {header:headers3[4], width:16},
+          {header:headers3[5], width:34}
         ];
         const hdr3 = ws3.getRow(1);
         hdr3.eachCell(cell => styleHeaderCell(cell));
         hdr3.height = 20;
         lastResult.extraDetail.forEach((d,i) => {
-          const row = ws3.addRow([d.consumer, d.category, d.status, d.payment, d.source]);
+          const row = ws3.addRow([d.consumer, d.category, d.feeder, d.status, d.payment, d.source]);
           const fill = i % 2 === 1 ? CLR_BAND_FILL : null;
           row.eachCell({includeEmpty:true}, (cell, colNum) => {
-            styleDataCell(cell, {align: colNum===4?'right':'left', fill, numFmt: colNum===4?NUM_FMT:undefined});
+            styleDataCell(cell, {align: colNum===5?'right':'left', fill, numFmt: colNum===5?NUM_FMT:undefined});
           });
         });
-        ws3.autoFilter = { from:{row:1, column:1}, to:{row:1, column:5} };
+        ws3.autoFilter = { from:{row:1, column:1}, to:{row:1, column:6} };
       }
 
       const buf = await wb.xlsx.writeBuffer();
