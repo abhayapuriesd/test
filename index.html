@@ -26,12 +26,37 @@
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
-    background: radial-gradient(1200px 800px at 85% -10%, #123c46 0%, var(--bg) 55%) fixed;
+    background:
+      radial-gradient(900px 500px at 88% -8%, rgba(51,201,176,.14) 0%, transparent 60%),
+      radial-gradient(700px 500px at 5% 0%, rgba(242,165,65,.10) 0%, transparent 55%),
+      var(--bg);
+    background-attachment: fixed;
     color:var(--text);
     font-family:var(--sans);
     min-height:100vh;
-    padding:32px 20px 80px;
+    padding:0 20px 80px;
   }
+  .topbar{
+    height:4px; margin:0 -20px 32px;
+    background:linear-gradient(90deg, var(--teal), var(--amber), var(--teal));
+    background-size:200% 100%;
+    animation: shimmer 6s ease-in-out infinite;
+  }
+  @keyframes shimmer{ 0%{background-position:0% 0;} 50%{background-position:100% 0;} 100%{background-position:0% 0;} }
+
+  @keyframes fadeUp{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+  .grid .slot{ animation: fadeUp .5s ease both; }
+  .grid .slot:nth-child(2){ animation-delay:.08s; }
+  .grid .slot:nth-child(3){ animation-delay:.16s; }
+  #results{ animation: fadeUp .4s ease both; }
+
+  .bolt{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:38px; height:38px; border-radius:10px; margin-right:12px;
+    background:linear-gradient(135deg, rgba(242,165,65,.18), rgba(51,201,176,.18));
+    border:1px solid var(--line); flex-shrink:0;
+  }
+  .title-row{display:flex; align-items:center;}
 
   .wrap{max-width:1080px;margin:0 auto;}
 
@@ -64,9 +89,11 @@
   }
   .slot{
     background:var(--panel); border:1px solid var(--line); border-radius:12px;
-    padding:18px; position:relative; transition:border-color .15s ease, transform .15s ease;
+    padding:18px; position:relative; transition:border-color .15s ease, transform .15s ease, box-shadow .15s ease;
   }
-  .slot.ready{border-color:var(--teal);}
+  .slot:hover{ transform:translateY(-2px); box-shadow:0 12px 28px -14px rgba(0,0,0,.5); }
+  .slot.ready{border-color:var(--teal); box-shadow:0 0 0 1px rgba(51,201,176,.25) inset;}
+  .slot.ready h3::after{ content:' ✓'; color:var(--teal); }
   .slot.drag{border-color:var(--amber); transform:translateY(-2px);}
   .slot .tag{
     font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
@@ -129,19 +156,34 @@
   tfoot td:first-child{text-align:left; color:var(--teal); font-family:var(--sans);}
   .empty-row td{text-align:center; color:var(--text-dim); font-family:var(--sans); padding:36px;}
 
+  .total-cell{ position:relative; display:flex; align-items:center; justify-content:flex-end; height:22px; }
+  .total-bar{
+    position:absolute; right:0; top:50%; transform:translateY(-50%); height:100%;
+    background:linear-gradient(90deg, rgba(51,201,176,.05), rgba(51,201,176,.22));
+    border-radius:5px; z-index:0;
+  }
+  .total-val{ position:relative; z-index:1; font-weight:700; color:var(--teal); padding-right:2px; }
+
   .foot-actions{display:flex; justify-content:flex-end; gap:10px; padding:14px 16px; border-top:1px solid var(--line);}
 
   footer.page{margin-top:36px; text-align:center; color:var(--text-dim); font-size:12px; font-family:var(--mono);}
 </style>
 </head>
-<body>
+<div class="topbar"></div>
 <div class="wrap">
 
   <header class="top">
     <div>
       <p class="eyebrow">Billing MIS · Utility</p>
-      <h1>Online Collection Report</h1>
-      <p class="sub">Upload the four source reports below. This tool pulls out <b>only the ONLINE collector</b> entries — filtered per source as noted — and rolls them up date-wise. Everything runs in your browser; no file leaves this page.</p>
+      <div class="title-row">
+        <span class="bolt">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 2L4 14H11L10 22L20 9H13L13 2Z" fill="#f2a541" stroke="#f2a541" stroke-width="0.5" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <h1>Online Collection Report</h1>
+      </div>
+      <p class="sub">Upload the source reports below. This tool pulls out <b>only the ONLINE collector</b> entries — filtered per source as noted — reads every sheet in every workbook, and rolls it all up date-wise. Everything runs in your browser; no file leaves this page.</p>
     </div>
     <div class="meter">
       Sources loaded
@@ -214,7 +256,8 @@
         <tfoot id="tfoot"></tfoot>
       </table>
       <div class="foot-actions">
-        <button class="ghost" id="downloadBtn">Download CSV</button>
+        <button class="ghost" id="downloadCsvBtn">⤓ Download CSV</button>
+        <button class="primary" id="downloadXlsxBtn">⤓ Download Excel</button>
       </div>
     </div>
   </div>
@@ -245,14 +288,17 @@
   }
 
   // ---------- date normalisation ----------
+  // Deliberately avoids JS Date/timezone conversion for numeric Excel serials —
+  // SSF.parse_date_code works purely off the serial number, so a July 1 cell
+  // can never drift back to June 30 because of a local/UTC offset.
   function toISODate(v){
-    if(v instanceof Date && !isNaN(v)) {
-      return v.toISOString().slice(0,10);
-    }
     if(typeof v === 'number'){
-      // excel serial date
       const d = XLSX.SSF.parse_date_code(v);
       if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+    }
+    if(v instanceof Date && !isNaN(v)) {
+      // fallback only — read using UTC getters, matching how such dates are built
+      return `${v.getUTCFullYear()}-${String(v.getUTCMonth()+1).padStart(2,'0')}-${String(v.getUTCDate()).padStart(2,'0')}`;
     }
     if(typeof v === 'string'){
       const s = v.trim();
@@ -263,10 +309,38 @@
         // ambiguous dd/mm vs mm/dd - assume dd/mm/yyyy (India)
         return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
       }
-      const parsed = new Date(s);
+      const parsed = new Date(s + 'T00:00:00Z');
       if(!isNaN(parsed)) return parsed.toISOString().slice(0,10);
     }
     return null;
+  }
+
+  // ---------- generic multi-sheet, header-optional reader ----------
+  // Some report exports only carry a header row on the first sheet; later
+  // sheets in the same workbook continue the data with no header at all.
+  // This detects that and falls back to the known column order.
+  function readSheetAsObjects(sheet, expectedHeader){
+    const aoa = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+    if(!aoa.length) return [];
+    const firstRow = aoa[0].map(x => String(x).trim());
+    const hasHeader = expectedHeader.some(h => firstRow.includes(h));
+    const header = hasHeader ? firstRow : expectedHeader;
+    const dataRows = hasHeader ? aoa.slice(1) : aoa;
+    return dataRows
+      .filter(r => r.some(c => c !== ''))
+      .map(r => {
+        const obj = {};
+        header.forEach((h, i) => obj[h] = r[i]);
+        return obj;
+      });
+  }
+
+  function readAllSheets(workbook, expectedHeader){
+    let rows = [];
+    workbook.SheetNames.forEach(name => {
+      rows = rows.concat(readSheetAsObjects(workbook.Sheets[name], expectedHeader));
+    });
+    return rows;
   }
 
   // ---------- CSV parsing (handles quoted fields) ----------
@@ -313,9 +387,9 @@
   }
 
   // ---------- File 2: Prepaid Recharge Report ----------
+  const PREPAID_SCHEMA = ['Customer No','Payment Date','Transaction No','Meter','Voucher Code','Amount Paid','Remarks'];
   function processPrepaid(workbook){
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    const json = readAllSheets(workbook, PREPAID_SCHEMA);
     const byDate = {};
     json.forEach(r => {
       const remarks = String(r['Remarks'] || '').toLowerCase();
@@ -329,16 +403,16 @@
   }
 
   // ---------- Files 3 & 4: Smart Prepaid Recharge Report ----------
+  const SMART_SCHEMA = ['Consumer No','Receipt No','Payment Mode','Amount','Payment Date','Cheque Reference No','Cheque Reference date','Cheque Reference Bank Name','Cheque Reference Branch Name','Paid Amount','Collector ID'];
   function processSmart(workbook){
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    const json = readAllSheets(workbook, SMART_SCHEMA);
     const byDate = {};
     json.forEach(r => {
       const collector = String(r['Collector ID'] || '').trim().toUpperCase();
       if(collector !== 'ONLINE') return;
       const date = toISODate(r['Payment Date']);
       if(!date) return;
-      const paid = r['Paid Amount'] !== '' ? parseFloat(r['Paid Amount']) : parseFloat(r['Amount']);
+      const paid = r['Paid Amount'] !== '' && r['Paid Amount'] != null ? parseFloat(r['Paid Amount']) : parseFloat(r['Amount']);
       byDate[date] = (byDate[date] || 0) + (paid || 0);
     });
     return byDate;
@@ -346,7 +420,7 @@
 
   // ---------- wiring up upload slots ----------
   function readAsText(file){ return new Promise((res,rej)=>{ const fr = new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsText(file); }); }
-  function readAsWorkbook(file){ return new Promise((res,rej)=>{ const fr = new FileReader(); fr.onload=()=>{ try{ res(XLSX.read(fr.result, {type:'binary', cellDates:true})); } catch(e){ rej(e); } }; fr.onerror=rej; fr.readAsBinaryString(file); }); }
+  function readAsWorkbook(file){ return new Promise((res,rej)=>{ const fr = new FileReader(); fr.onload=()=>{ try{ res(XLSX.read(fr.result, {type:'binary'})); } catch(e){ rej(e); } }; fr.onerror=rej; fr.readAsBinaryString(file); }); }
 
   function renderFileList(id, names){
     const ul = document.getElementById(id);
@@ -456,9 +530,17 @@
     if(!rows.length){
       tbody.innerHTML = '<tr class="empty-row"><td colspan="5">No online collection rows found across the uploaded files.</td></tr>';
     } else {
+      const maxTotal = Math.max(...rows.map(r => r.total), 1);
       rows.forEach(r => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${formatDisplayDate(r.date)}</td><td>${rupee(r.mis)}</td><td>${rupee(r.prepaid)}</td><td>${rupee(r.smart)}</td><td style="color:var(--teal); font-weight:700;">${rupee(r.total)}</td>`;
+        const pct = Math.max(4, Math.round((r.total / maxTotal) * 100));
+        tr.innerHTML = `<td>${formatDisplayDate(r.date)}</td><td>${rupee(r.mis)}</td><td>${rupee(r.prepaid)}</td><td>${rupee(r.smart)}</td>
+          <td>
+            <div class="total-cell">
+              <span class="total-bar" style="width:${pct}%"></span>
+              <span class="total-val">${rupee(r.total)}</span>
+            </div>
+          </td>`;
         tbody.appendChild(tr);
       });
     }
@@ -482,7 +564,7 @@
     return `${d} ${months[parseInt(m,10)-1]} ${y}`;
   }
 
-  document.getElementById('downloadBtn').addEventListener('click', () => {
+  document.getElementById('downloadCsvBtn').addEventListener('click', () => {
     if(!lastRows.length) return;
     let csv = 'Date,MIS Online (Energy+RCDC),Prepaid Recharge Online,Smart Prepaid Online,Total Online Collection\n';
     lastRows.forEach(r => { csv += `${r.date},${r.mis},${r.prepaid},${r.smart},${r.total}\n`; });
@@ -494,6 +576,40 @@
     a.href = url; a.download = 'online-collection-report.csv';
     a.click();
     URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('downloadXlsxBtn').addEventListener('click', () => {
+    if(!lastRows.length) return;
+    const sum = k => lastRows.reduce((s,r)=>s+r[k],0);
+    const header = ['Date','MIS Online (Energy + RCDC)','Prepaid Recharge Online','Smart Prepaid Online','Total Online Collection'];
+    const aoa = [header];
+    lastRows.forEach(r => aoa.push([formatDisplayDate(r.date), r.mis, r.prepaid, r.smart, r.total]));
+    aoa.push(['Total', sum('mis'), sum('prepaid'), sum('smart'), sum('total')]);
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:16},{wch:24},{wch:22},{wch:20},{wch:22}];
+    const currencyFmt = '#,##0';
+    const lastRow = aoa.length; // 1-indexed incl header
+    for(let R = 1; R < lastRow; R++){
+      for(let C = 1; C <= 4; C++){
+        const addr = XLSX.utils.encode_cell({r:R, c:C});
+        if(ws[addr]) ws[addr].z = currencyFmt;
+      }
+    }
+    // bold header + total row (works in clients that honour cell styles, e.g. Excel desktop)
+    const boldStyle = { font: { bold: true } };
+    header.forEach((_, C) => {
+      const addr = XLSX.utils.encode_cell({r:0, c:C});
+      if(ws[addr]) ws[addr].s = boldStyle;
+    });
+    for(let C = 0; C <= 4; C++){
+      const addr = XLSX.utils.encode_cell({r:lastRow-1, c:C});
+      if(ws[addr]) ws[addr].s = boldStyle;
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Online Collection');
+    XLSX.writeFile(wb, 'online-collection-report.xlsx');
   });
 
   updateLoadedCount();
