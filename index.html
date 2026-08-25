@@ -252,10 +252,12 @@
     Files are parsed entirely in your browser using SheetJS — nothing is uploaded anywhere.
     Consumer numbers are matched as text (leading zeros preserved) across all three reports.
     The downloaded workbook contains four sheets: <code>Category wise CD</code> and <code>Feeder wise CD</code>
-    (each a category/feeder × SMART/NON_SMART summary), <code>Main List</code> (one row per matched consumer,
-    ARMS billing columns plus status/cd/payment/outstanding/feeder), and <code>Extra Payments (No ARMS Bill)</code>.
-    Feeder comes from Billing Payment Status's <code>Feeder Name</code> column; any matched payment whose consumer
-    has no feeder on record falls into <code>DUMMY FEEDER</code>.
+    (each a category/feeder × SMART/NON_SMART summary), <code>Main List</code> (Sl.No / Consumer No / status / cd /
+    payment / outstanding / Feeder, then the ARMS billing columns — plus, appended at the end, every consumer who
+    paid an energy bill but has no ARMS Billing row, shown with "NA" wherever their category/status/feeder/outstanding
+    couldn't be found), and <code>Extra Payments (No ARMS Bill)</code> (the same appended consumers, as a standalone
+    filterable list). Feeder comes from Billing Payment Status's <code>Feeder Name</code> column; any matched
+    consumer with no feeder on record falls into <code>DUMMY FEEDER</code>.
   </footer>
 </div>
 
@@ -344,9 +346,9 @@
   setupDrop('drop-bp','file-bp','bp','card-bp','fn-bp','rc-bp');
 
   const MAIN_LIST_HEADERS = [
-    'Sl. No','Consumer No','status','cd','payment','outstanding',
+    'Sl. No','Consumer No','status','cd','payment','outstanding','Feeder',
     'Old Consumer No','Consumer Name','Consumer Add1','Mobile No','Email','Bill No','Bill Date','Due Date',
-    'DTR No','sdfg','Billing Status','Metering Status','Category Code Name','Meter No 1','Meter No. Solar',
+    'DTR No','Billing Status','Metering Status','Category Code Name','Meter No 1','Meter No. Solar',
     'Connected Load','Contracted Demand','MF','PF','MD','Avg. Consumption','DTR Penalty','Previous Reading',
     'Previous Reading Date','Current Reading','Current Reading Date','UNIB','Unit Slab 1','Unit Slab 2','Unit Slab 3',
     'SLAB 1','SLAB 2','SLAB 3','Electicity Duty','Elch Total','Meter Rent','Fixcharge Amount','FPA Amount',
@@ -354,8 +356,10 @@
     'Arrear Surcharge','Current Interest','Misc. Arrear','CRADJ','Govt. Subsidy','Net Bill','No. LOf Days',
     'Bill Type','Updated By','Update Date'
   ];
-  // Arms billing source columns to copy verbatim, in the order they appear after "Old Consumer No" in the output.
-  const ARMS_PASSTHROUGH = MAIN_LIST_HEADERS.slice(6).filter(h=>h!=='sdfg');
+  // Arms billing source columns to copy verbatim, in the order they appear after "Feeder" in the output.
+  // (Sl.No, Consumer No, status, cd, payment, outstanding, Feeder are computed — everything from
+  // "Old Consumer No" onward is copied straight from the ARMS Billing row.)
+  const ARMS_PASSTHROUGH = MAIN_LIST_HEADERS.slice(7);
 
   const TEMP_ADJ_LABEL = 'Credit adjustment (Temporary)';
   const FALLBACK_DOMESTIC_CATEGORY = 'LT II DOMESTIC A'; // used when an unmatched energy-bill payer isn't in Billing Payment Status either
@@ -511,10 +515,9 @@
         'cd': round2(cd),
         'payment': round2(payment),
         'outstanding': round2(bp.outstanding),
+        'Feeder': bp.feeder,
         'Old Consumer No': row['Old Consumer No'] ?? '',
-        'DTR No': row['DTR No'] ?? '',
-        'sdfg': row['DTR No'] ?? '',
-        '__feeder': bp.feeder
+        'DTR No': row['DTR No'] ?? ''
       };
       for(const h of ARMS_PASSTHROUGH){
         if(h === 'Old Consumer No' || h === 'DTR No') continue;
@@ -536,7 +539,7 @@
     function ensureFeederGroup(feeder, status){ return ensureGroupIn(feederGroups, feeder, status); }
     for(const r of mainRows){
       const cat = normalizeCategory(r['Category Code Name']) || '(blank)';
-      const feeder = r['__feeder'] || DUMMY_FEEDER;
+      const feeder = r['Feeder'] || DUMMY_FEEDER;
       const status = r['status'] === 'SMART' ? 'SMART' : 'NON_SMART';
       const g = ensureGroup(cat, status);
       g.count += 1;
@@ -553,10 +556,13 @@
     // 5) energy-bill payers from All Collection who never appear in ARMS Billing at all.
     //    These add ONLY to the payment figure (no cd/outstanding, since there's no ARMS bill row for them).
     //    Category + SMART/NON_SMART is looked up from Billing Payment Status; if the consumer isn't
-    //    there either, the payment defaults into the Domestic / SMART bucket.
+    //    there either, the payment defaults into the Domestic / SMART bucket for the summary sheets.
+    //    Every one of these consumers is also appended to Main List at the very end (see below), showing
+    //    the real Billing Payment Status values where known, or "NA" where nothing could be found.
     let extraMatchedTotal = 0, extraMatchedCount = 0;
     let extraUnmatchedTotal = 0, extraUnmatchedCount = 0;
     const extraDetail = [];
+    const extraMainListRows = [];
     for(const [cno, amt] of paymentMap.entries()){
       if(abConsumers.has(cno)) continue; // already reflected via the ARMS billing walk above
       const b = bpMap.get(cno);
@@ -568,6 +574,15 @@
         fg.payment += amt;
         extraMatchedTotal += amt; extraMatchedCount += 1;
         extraDetail.push({consumer:cno, category:b.category, feeder:b.feeder, status, payment:round2(amt), source:'Billing Payment Status'});
+        extraMainListRows.push({
+          'Sl. No': sl++,
+          'Consumer No': cno,
+          'status': b.status,
+          'payment': round2(amt),
+          'outstanding': round2(b.outstanding),
+          'Feeder': b.feeder,
+          'Category Code Name': b.category
+        });
       } else {
         const g = ensureGroup(FALLBACK_DOMESTIC_CATEGORY, 'SMART');
         g.payment += amt;
@@ -575,6 +590,15 @@
         fg.payment += amt;
         extraUnmatchedTotal += amt; extraUnmatchedCount += 1;
         extraDetail.push({consumer:cno, category:FALLBACK_DOMESTIC_CATEGORY, feeder:DUMMY_FEEDER, status:'SMART', payment:round2(amt), source:'Not found anywhere — defaulted'});
+        extraMainListRows.push({
+          'Sl. No': sl++,
+          'Consumer No': cno,
+          'status': 'NA',
+          'payment': round2(amt),
+          'outstanding': 'NA',
+          'Feeder': 'NA',
+          'Category Code Name': 'NA'
+        });
       }
     }
 
@@ -630,6 +654,10 @@
     const catSummary = buildSummary(catGroups);
     const feederSummary = buildSummary(feederGroups);
 
+    // 8) append the "paid but no ARMS bill" consumers to the end of Main List (after everything above
+    //    has used the original ARMS-matched mainRows for its counts, so this doesn't skew the summaries).
+    mainRows.push(...extraMainListRows);
+
     return {
       mainRows,
       summaryRows: catSummary.summaryRows, grand: catSummary.grand,
@@ -659,8 +687,8 @@
     const noteItems = [
       'ARMS Billing rows with a "temporary" category contribute ' + fmt(adj.tempAdj) + ' of CRADJ credit adjustment, added directly into that same temporary category\'s (and its consumer\'s feeder\'s) SMART payment (no separate adjustment row).',
       adj.extraMatchedCount + ' consumer(s) paid an energy bill but have no ARMS Billing row — ' + fmt(adj.extraMatchedTotal) + ' added to payment, category/feeder/status taken from Billing Payment Status.',
-      adj.extraUnmatchedCount + ' consumer(s) paid an energy bill and were not found in either ARMS Billing or Billing Payment Status — ' + fmt(adj.extraUnmatchedTotal) + ' defaulted into "' + FALLBACK_DOMESTIC_CATEGORY + '" category / "' + DUMMY_FEEDER + '" feeder / SMART payment.',
-      'These additions only change the payment (and therefore balance) figures in the Category wise CD and Feeder wise CD sheets — they do not add rows to Main List, since there is no ARMS bill to show.',
+      adj.extraUnmatchedCount + ' consumer(s) paid an energy bill and were not found in either ARMS Billing or Billing Payment Status — ' + fmt(adj.extraUnmatchedTotal) + ' defaulted into "' + FALLBACK_DOMESTIC_CATEGORY + '" category / "' + DUMMY_FEEDER + '" feeder / SMART payment for the summary sheets.',
+      'All ' + (adj.extraMatchedCount + adj.extraUnmatchedCount) + ' of these "no ARMS bill" consumers are also appended at the end of Main List, showing their real status/category/feeder/outstanding where known, or "NA" where nothing could be found — cd (Current Demand) is left blank since there is no ARMS bill to read it from.',
       'Feeder wise CD groups every matched consumer by Billing Payment Status\'s Feeder Name; consumers with no feeder on record fall into "' + DUMMY_FEEDER + '".'
     ];
     for(const t of noteItems){
@@ -868,7 +896,7 @@
       });
       ws2.getColumn(1).alignment = {horizontal:'right'};
       // left-align the obviously text columns
-      ['Consumer No','Old Consumer No','Consumer Name','Consumer Add1','Category Code Name','Billing Status','Metering Status','Bill Type','Updated By'].forEach(h=>{
+      ['Consumer No','Feeder','Old Consumer No','Consumer Name','Consumer Add1','Category Code Name','Billing Status','Metering Status','Bill Type','Updated By'].forEach(h=>{
         const idx = MAIN_LIST_HEADERS.indexOf(h)+1;
         if(idx>0) ws2.getColumn(idx).alignment = {horizontal:'left'};
       });
