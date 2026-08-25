@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Online Collection Report — Date-wise</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   :root{
     --bg:#0b1f26;
@@ -182,11 +182,11 @@
         </span>
         <h1>Online Collection Report</h1>
       </div>
-      <p class="sub">Upload the four source reports below. Reads every sheet in every workbook and builds a date-wise pivot — one column per collection channel. Everything runs in your browser; no file leaves this page.</p>
+      <p class="sub">Upload the three source reports below. Reads every sheet in every workbook and builds a date-wise pivot — one column per collection channel. Everything runs in your browser; no file leaves this page.</p>
     </div>
     <div class="meter">
       Sources loaded
-      <b id="loadedCount">0 / 4</b>
+      <b id="loadedCount">0 / 3</b>
     </div>
   </header>
 
@@ -195,8 +195,7 @@
     <ul>
       <li><b>MIS Daily Collection</b> — Collector Id = <b>ONLINE</b> only, split into two columns: <b>RC/DC</b> (Disconnection/Reconnection Charge) and <b>Energy Bill</b>. All other purposes ignored.</li>
       <li><b>Prepaid Recharge Report</b> — rows marked <b>Online Recharge</b> → Online Prepaid Meter column.</li>
-      <li><b>Smart Prepaid Recharge Report</b> — Collector ID = <b>ONLINE</b> → Online Smart Prepaid column.</li>
-      <li><b>Smart Prepaid Recharge Report (Cash OS)</b> — the second smart-prepaid export, Collector ID = <b>ONLINE</b> → its own Online Smart Prepaid (cash_os) column.</li>
+      <li><b>Smart Prepaid Recharge Report</b> — Collector ID = <b>ONLINE</b>. One upload slot takes both smart-prepaid files; rows are split into <b>Online Smart Prepaid</b> vs <b>Online Smart Prepaid (cash_os)</b> automatically based on the Payment Mode column.</li>
     </ul>
   </div>
 
@@ -224,27 +223,19 @@
     <div class="slot" id="slot-smart">
       <span class="tag">File 3</span>
       <h3>Smart Prepaid Recharge Report</h3>
-      <p class="hint">Main .xls export — all sheets combined.</p>
+      <p class="hint">Upload one or both smart-prepaid exports here — all sheets from every file are combined. The tool tells regular collections apart from Cash OS entries automatically using the Payment Mode column (anything ending in "_os" goes to the Cash OS column).</p>
       <div class="filter-note">Collector ID = ONLINE</div>
-      <div class="dropzone" data-for="smart">Click or drop .xls here</div>
-      <input type="file" id="smart" accept=".xls,.xlsx" />
+      <div class="dropzone" data-for="smart">Click or drop .xls file(s) here</div>
+      <input type="file" id="smart" accept=".xls,.xlsx" multiple />
       <ul class="filelist" id="smart-list"></ul>
-    </div>
-
-    <div class="slot" id="slot-smartcash">
-      <span class="tag">File 4</span>
-      <h3>Smart Prepaid — Cash OS</h3>
-      <p class="hint">The second smart-prepaid export, kept as its own column.</p>
-      <div class="filter-note">Collector ID = ONLINE</div>
-      <div class="dropzone" data-for="smartcash">Click or drop .xls here</div>
-      <input type="file" id="smartcash" accept=".xls,.xlsx" />
-      <ul class="filelist" id="smartcash-list"></ul>
     </div>
   </div>
 
   <div class="actions">
     <button class="primary" id="genBtn" disabled>Generate report</button>
     <button class="ghost" id="resetBtn">Reset all</button>
+    <button class="primary" id="downloadXlsxBtn" style="display:none;">⤓ Download Excel</button>
+    <button class="ghost" id="downloadCsvBtn" style="display:none;">⤓ Download CSV</button>
     <span id="status"></span>
   </div>
 
@@ -267,10 +258,6 @@
         <tbody id="tbody"></tbody>
         <tfoot id="tfoot"></tfoot>
       </table>
-      <div class="foot-actions">
-        <button class="ghost" id="downloadCsvBtn">⤓ Download CSV</button>
-        <button class="primary" id="downloadXlsxBtn">⤓ Download Excel</button>
-      </div>
     </div>
   </div>
 
@@ -279,11 +266,11 @@
 
 <script>
 (function(){
-  const state = { mis: null, prepaid: null, smart: null, smartcash: null };
+  const state = { mis: null, prepaid: null, smart: null };
   const HEADER = ['Date','Online RC/DC','Online Energy Bill','Online Prepaid Meter','Online Smart Prepaid','Online Smart Prepaid (cash_os)','Grand Total'];
 
-  const fmt = n => n.toLocaleString('en-IN', {maximumFractionDigits: 0});
-  const rupee = n => n ? '₹' + fmt(n) : '—';
+  const fmt = n => Number(n).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const rupee = n => '₹' + fmt(n || 0);
 
   function setStatus(msg, isErr){
     const el = document.getElementById('status');
@@ -292,9 +279,9 @@
   }
 
   function updateLoadedCount(){
-    const n = (state.mis?1:0)+(state.prepaid?1:0)+(state.smart?1:0)+(state.smartcash?1:0);
-    document.getElementById('loadedCount').textContent = n + ' / 4';
-    document.getElementById('genBtn').disabled = n < 4;
+    const n = (state.mis?1:0)+(state.prepaid?1:0)+(state.smart?1:0);
+    document.getElementById('loadedCount').textContent = n + ' / 3';
+    document.getElementById('genBtn').disabled = n < 3;
   }
 
   // ---------- date normalisation ----------
@@ -397,20 +384,23 @@
     return byDate;
   }
 
-  // ---------- Files 3 & 4: Smart Prepaid Recharge Report ----------
+  // ---------- File 3: Smart Prepaid Recharge Report(s) ----------
+  // Accepts one or more files. Rows are split into "smart" vs "smartcash"
+  // purely from the Payment Mode column (anything ending "_os" is Cash OS) —
+  // this works whether the user drops in one file or both.
   const SMART_SCHEMA = ['Consumer No','Receipt No','Payment Mode','Amount','Payment Date','Cheque Reference No','Cheque Reference date','Cheque Reference Bank Name','Cheque Reference Branch Name','Paid Amount','Collector ID'];
-  function processSmart(workbook){
+  function processSmartWorkbook(workbook, acc){
     const json = readAllSheets(workbook, SMART_SCHEMA);
-    const byDate = {};
     json.forEach(r => {
       const collector = String(r['Collector ID'] || '').trim().toUpperCase();
       if(collector !== 'ONLINE') return;
       const date = toISODate(r['Payment Date']);
       if(!date) return;
       const paid = r['Paid Amount'] !== '' && r['Paid Amount'] != null ? parseFloat(r['Paid Amount']) : parseFloat(r['Amount']);
-      byDate[date] = (byDate[date] || 0) + (paid || 0);
+      const mode = String(r['Payment Mode'] || '').trim().toLowerCase();
+      const target = mode.endsWith('_os') ? acc.smartcash : acc.smart;
+      target[date] = (target[date] || 0) + (paid || 0);
     });
-    return byDate;
   }
 
   // ---------- wiring up upload slots ----------
@@ -447,34 +437,25 @@
     updateLoadedCount();
   }
 
-  async function handleSmart(file){
-    setStatus('Reading Smart Prepaid Recharge Report…');
+  async function handleSmart(files){
+    setStatus('Reading Smart Prepaid Recharge Report(s)…');
     try{
-      const wb = await readAsWorkbook(file);
-      state.smart = processSmart(wb);
+      const acc = { smart:{}, smartcash:{} };
+      for(const file of files){
+        const wb = await readAsWorkbook(file);
+        processSmartWorkbook(wb, acc);
+      }
+      state.smart = acc;
       document.getElementById('slot-smart').classList.add('ready');
-      renderFileList('smart-list', [file.name]);
+      renderFileList('smart-list', files.map(f=>f.name));
       setStatus('');
-    } catch(e){ setStatus('Could not read Smart Prepaid file: ' + e.message, true); }
-    updateLoadedCount();
-  }
-
-  async function handleSmartCash(file){
-    setStatus('Reading Smart Prepaid (Cash OS) Report…');
-    try{
-      const wb = await readAsWorkbook(file);
-      state.smartcash = processSmart(wb);
-      document.getElementById('slot-smartcash').classList.add('ready');
-      renderFileList('smartcash-list', [file.name]);
-      setStatus('');
-    } catch(e){ setStatus('Could not read Smart Prepaid (Cash OS) file: ' + e.message, true); }
+    } catch(e){ setStatus('Could not read Smart Prepaid file(s): ' + e.message, true); }
     updateLoadedCount();
   }
 
   document.getElementById('mis').addEventListener('change', e => { if(e.target.files[0]) handleMIS(e.target.files[0]); });
   document.getElementById('prepaid').addEventListener('change', e => { if(e.target.files[0]) handlePrepaid(e.target.files[0]); });
-  document.getElementById('smart').addEventListener('change', e => { if(e.target.files[0]) handleSmart(e.target.files[0]); });
-  document.getElementById('smartcash').addEventListener('change', e => { if(e.target.files[0]) handleSmartCash(e.target.files[0]); });
+  document.getElementById('smart').addEventListener('change', e => { if(e.target.files.length) handleSmart([...e.target.files]); });
 
   document.querySelectorAll('.dropzone').forEach(dz => {
     const key = dz.dataset.for;
@@ -489,19 +470,20 @@
       if(!files.length) return;
       if(key === 'mis') handleMIS(files[0]);
       else if(key === 'prepaid') handlePrepaid(files[0]);
-      else if(key === 'smart') handleSmart(files[0]);
-      else if(key === 'smartcash') handleSmartCash(files[0]);
+      else if(key === 'smart') handleSmart(files);
     });
   });
 
   document.getElementById('resetBtn').addEventListener('click', () => {
-    state.mis = null; state.prepaid = null; state.smart = null; state.smartcash = null;
-    ['mis','prepaid','smart','smartcash'].forEach(id => {
+    state.mis = null; state.prepaid = null; state.smart = null;
+    ['mis','prepaid','smart'].forEach(id => {
       document.getElementById(id).value = '';
       document.getElementById(id+'-list').innerHTML = '';
       document.getElementById('slot-'+id).classList.remove('ready');
     });
     document.getElementById('results').style.display = 'none';
+    document.getElementById('downloadXlsxBtn').style.display = 'none';
+    document.getElementById('downloadCsvBtn').style.display = 'none';
     setStatus('');
     updateLoadedCount();
   });
@@ -511,7 +493,7 @@
 
   document.getElementById('genBtn').addEventListener('click', () => {
     const allDates = new Set();
-    [state.mis.rcdc, state.mis.energy, state.prepaid, state.smart, state.smartcash].forEach(obj => {
+    [state.mis.rcdc, state.mis.energy, state.prepaid, state.smart.smart, state.smart.smartcash].forEach(obj => {
       Object.keys(obj).forEach(d => allDates.add(d));
     });
     const dates = [...allDates].sort();
@@ -519,8 +501,8 @@
       const rcdc = state.mis.rcdc[d] || 0;
       const energy = state.mis.energy[d] || 0;
       const prepaid = state.prepaid[d] || 0;
-      const smart = state.smart[d] || 0;
-      const smartcash = state.smartcash[d] || 0;
+      const smart = state.smart.smart[d] || 0;
+      const smartcash = state.smart.smartcash[d] || 0;
       return { date:d, rcdc, energy, prepaid, smart, smartcash, total: rcdc+energy+prepaid+smart+smartcash };
     });
     lastRows = rows;
@@ -558,21 +540,24 @@
       <div class="stat grand"><div class="l">Grand Total</div><div class="v">${rupee(sum('total'))}</div></div>
     `;
     document.getElementById('results').style.display = 'block';
+    document.getElementById('downloadXlsxBtn').style.display = 'inline-block';
+    document.getElementById('downloadCsvBtn').style.display = 'inline-block';
     setStatus(`Report generated — ${rows.length} date(s).`);
   }
 
   function formatDisplayDate(iso){
     const [y,m,d] = iso.split('-');
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return `${d} ${months[parseInt(m,10)-1]} ${y}`;
+    return `${d}-${m}-${y}`;
   }
+
+  const d2 = n => Number(n||0).toFixed(2);
 
   document.getElementById('downloadCsvBtn').addEventListener('click', () => {
     if(!lastRows.length) return;
     let csv = HEADER.join(',') + '\n';
-    lastRows.forEach(r => { csv += `${r.date},${r.rcdc},${r.energy},${r.prepaid},${r.smart},${r.smartcash},${r.total}\n`; });
+    lastRows.forEach(r => { csv += `${formatDisplayDate(r.date)},${d2(r.rcdc)},${d2(r.energy)},${d2(r.prepaid)},${d2(r.smart)},${d2(r.smartcash)},${d2(r.total)}\n`; });
     const sum = k => lastRows.reduce((s,r)=>s+r[k],0);
-    csv += `Grand Total,${sum('rcdc')},${sum('energy')},${sum('prepaid')},${sum('smart')},${sum('smartcash')},${sum('total')}\n`;
+    csv += `Grand Total,${d2(sum('rcdc'))},${d2(sum('energy'))},${d2(sum('prepaid'))},${d2(sum('smart'))},${d2(sum('smartcash'))},${d2(sum('total'))}\n`;
     const blob = new Blob([csv], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -584,23 +569,75 @@
   document.getElementById('downloadXlsxBtn').addEventListener('click', () => {
     if(!lastRows.length) return;
     const sum = k => lastRows.reduce((s,r)=>s+r[k],0);
-    const aoa = [HEADER];
-    lastRows.forEach(r => aoa.push([formatDisplayDate(r.date), r.rcdc||'', r.energy||'', r.prepaid||'', r.smart||'', r.smartcash||'', r.total]));
+
+    const TITLE = 'Online Collection Report';
+    const aoa = [
+      [TITLE, '', '', '', '', '', ''],
+      HEADER,
+    ];
+    lastRows.forEach(r => aoa.push([formatDisplayDate(r.date), r.rcdc, r.energy, r.prepaid, r.smart, r.smartcash, r.total]));
     aoa.push(['Grand Total', sum('rcdc'), sum('energy'), sum('prepaid'), sum('smart'), sum('smartcash'), sum('total')]);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:14},{wch:14},{wch:16},{wch:18},{wch:18},{wch:22},{wch:16}];
-    const currencyFmt = '#,##0';
-    const lastRow = aoa.length;
-    for(let R = 1; R < lastRow; R++){
-      for(let C = 1; C <= 6; C++){
+    ws['!cols'] = [{wch:14},{wch:15},{wch:17},{wch:19},{wch:19},{wch:23},{wch:18}];
+    ws['!rows'] = [{hpt:26},{hpt:22}];
+    ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:6} }];
+    ws['!freeze'] = { xSplit:0, ySplit:2 };
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({s:{r:1,c:0}, e:{r:1,c:6}}) };
+
+    const NAVY = '123540', TEAL = '1E8F7A', TEAL_LT = 'E4F6F2', AMBER = 'F2A541', WHITE = 'FFFFFF', ZEBRA = 'F4F9F8', INK = '1B2B2E';
+    const thin = { style:'thin', color:{rgb:'C9DEDA'} };
+    const border = { top:thin, bottom:thin, left:thin, right:thin };
+    const currencyFmt = '#,##0.00';
+    const lastRowIdx = aoa.length - 1;
+
+    // title row
+    for(let C = 0; C <= 6; C++){
+      const addr = XLSX.utils.encode_cell({r:0, c:C});
+      if(ws[addr]) ws[addr].s = { font:{ bold:true, sz:14, color:{rgb:WHITE} }, fill:{ fgColor:{rgb:NAVY} }, alignment:{ horizontal:'left', vertical:'center' } };
+    }
+
+    // header row
+    HEADER.forEach((_, C) => {
+      const addr = XLSX.utils.encode_cell({r:1, c:C});
+      if(ws[addr]) ws[addr].s = {
+        font:{ bold:true, sz:10.5, color:{rgb:WHITE} },
+        fill:{ fgColor:{rgb:TEAL} },
+        alignment:{ horizontal: C===0 ? 'left':'center', vertical:'center', wrapText:true },
+        border
+      };
+    });
+
+    // data rows (zebra striping + number format + borders)
+    for(let R = 2; R < lastRowIdx; R++){
+      const isEven = (R - 2) % 2 === 1;
+      for(let C = 0; C <= 6; C++){
         const addr = XLSX.utils.encode_cell({r:R, c:C});
-        if(ws[addr]) ws[addr].z = currencyFmt;
+        if(!ws[addr]) continue;
+        const style = {
+          font:{ sz:10.5, color:{rgb:INK} },
+          alignment:{ horizontal: C===0 ? 'left':'right', vertical:'center' },
+          border,
+          fill: isEven ? { fgColor:{rgb:ZEBRA} } : undefined
+        };
+        if(C >= 1){ ws[addr].z = currencyFmt; }
+        if(C === 6){ style.font.bold = true; style.font.color = {rgb:'0F6B5C'}; }
+        ws[addr].s = style;
       }
     }
-    const boldStyle = { font: { bold: true } };
-    HEADER.forEach((_, C) => { const addr = XLSX.utils.encode_cell({r:0, c:C}); if(ws[addr]) ws[addr].s = boldStyle; });
-    for(let C = 0; C <= 6; C++){ const addr = XLSX.utils.encode_cell({r:lastRow-1, c:C}); if(ws[addr]) ws[addr].s = boldStyle; }
+
+    // grand total row
+    for(let C = 0; C <= 6; C++){
+      const addr = XLSX.utils.encode_cell({r:lastRowIdx, c:C});
+      if(!ws[addr]) continue;
+      if(C >= 1) ws[addr].z = currencyFmt;
+      ws[addr].s = {
+        font:{ bold:true, sz:11, color:{rgb:INK} },
+        fill:{ fgColor:{rgb:AMBER} },
+        alignment:{ horizontal: C===0 ? 'left':'right', vertical:'center' },
+        border
+      };
+    }
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Online Collection');
