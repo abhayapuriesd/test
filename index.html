@@ -182,22 +182,8 @@
         </span>
         <h1>Online Collection Report</h1>
       </div>
-      <p class="sub">Upload the three source reports below. Reads every sheet in every workbook and builds a date-wise pivot — one column per collection channel. Everything runs in your browser; no file leaves this page.</p>
-    </div>
-    <div class="meter">
-      Sources loaded
-      <b id="loadedCount">0 / 3</b>
     </div>
   </header>
-
-  <div class="rules-card">
-    <b>What gets picked up from each file</b>
-    <ul>
-      <li><b>MIS Daily Collection</b> — Collector Id = <b>ONLINE</b> only, split into two columns: <b>RC/DC</b> (Disconnection/Reconnection Charge) and <b>Energy Bill</b>. All other purposes ignored.</li>
-      <li><b>Prepaid Recharge Report</b> — rows marked <b>Online Recharge</b> → Online Prepaid Meter column.</li>
-      <li><b>Smart Prepaid Recharge Report</b> — Collector ID = <b>ONLINE</b>. One upload slot takes both smart-prepaid files; rows are split into <b>Online Smart Prepaid</b> vs <b>Online Smart Prepaid (cash_os)</b> automatically based on the Payment Mode column.</li>
-    </ul>
-  </div>
 
   <div class="grid">
     <div class="slot" id="slot-mis">
@@ -280,7 +266,6 @@
 
   function updateLoadedCount(){
     const n = (state.mis?1:0)+(state.prepaid?1:0)+(state.smart?1:0);
-    document.getElementById('loadedCount').textContent = n + ' / 3';
     document.getElementById('genBtn').disabled = n < 3;
   }
 
@@ -580,61 +565,77 @@
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{wch:14},{wch:15},{wch:17},{wch:19},{wch:19},{wch:23},{wch:18}];
-    ws['!rows'] = [{hpt:26},{hpt:22}];
     ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:6} }];
     ws['!freeze'] = { xSplit:0, ySplit:2 };
-    ws['!autofilter'] = { ref: XLSX.utils.encode_range({s:{r:1,c:0}, e:{r:1,c:6}}) };
 
-    const NAVY = '123540', TEAL = '1E8F7A', TEAL_LT = 'E4F6F2', AMBER = 'F2A541', WHITE = 'FFFFFF', ZEBRA = 'F4F9F8', INK = '1B2B2E';
+    const NAVY = '123540', TEAL = '1E8F7A', AMBER = 'F2A541', WHITE = 'FFFFFF', ZEBRA = 'F4F9F8', INK = '1B2B2E';
     const thin = { style:'thin', color:{rgb:'C9DEDA'} };
     const border = { top:thin, bottom:thin, left:thin, right:thin };
     const currencyFmt = '#,##0.00';
-    const lastRowIdx = aoa.length - 1;
+    const dataFirstRow = 2;              // 0-indexed: first data row
+    const lastRowIdx = aoa.length - 1;   // 0-indexed: grand total row
+    const dataLastExcelRow = lastRowIdx; // excel row number (1-indexed) of last data row — numerically equal to lastRowIdx here
+    const totalExcelRow = lastRowIdx + 1;
+
+    // row heights: title, header (taller for wrapped text), each data row, total row
+    ws['!rows'] = [];
+    ws['!rows'][0] = { hpt: 26 };
+    ws['!rows'][1] = { hpt: 34 };
+    for(let R = dataFirstRow; R < lastRowIdx; R++) ws['!rows'][R] = { hpt: 20 };
+    ws['!rows'][lastRowIdx] = { hpt: 24 };
 
     // title row
     for(let C = 0; C <= 6; C++){
       const addr = XLSX.utils.encode_cell({r:0, c:C});
-      if(ws[addr]) ws[addr].s = { font:{ bold:true, sz:14, color:{rgb:WHITE} }, fill:{ fgColor:{rgb:NAVY} }, alignment:{ horizontal:'left', vertical:'center' } };
+      if(ws[addr]) ws[addr].s = { font:{ bold:true, sz:14, color:{rgb:WHITE} }, fill:{ fgColor:{rgb:NAVY} }, alignment:{ horizontal:'center', vertical:'center' }, border };
     }
 
-    // header row
+    // header row — centered both ways
     HEADER.forEach((_, C) => {
       const addr = XLSX.utils.encode_cell({r:1, c:C});
       if(ws[addr]) ws[addr].s = {
         font:{ bold:true, sz:10.5, color:{rgb:WHITE} },
         fill:{ fgColor:{rgb:TEAL} },
-        alignment:{ horizontal: C===0 ? 'left':'center', vertical:'center', wrapText:true },
+        alignment:{ horizontal:'center', vertical:'center', wrapText:true },
         border
       };
     });
 
-    // data rows (zebra striping + number format + borders)
-    for(let R = 2; R < lastRowIdx; R++){
-      const isEven = (R - 2) % 2 === 1;
+    // data rows — zebra striping + number format + borders; row Grand Total (col G) as a SUM formula
+    for(let R = dataFirstRow; R < lastRowIdx; R++){
+      const excelRow = R + 1;
+      const isEven = (R - dataFirstRow) % 2 === 1;
       for(let C = 0; C <= 6; C++){
         const addr = XLSX.utils.encode_cell({r:R, c:C});
         if(!ws[addr]) continue;
         const style = {
           font:{ sz:10.5, color:{rgb:INK} },
-          alignment:{ horizontal: C===0 ? 'left':'right', vertical:'center' },
+          alignment:{ horizontal: C===0 ? 'center':'right', vertical:'center' },
           border,
           fill: isEven ? { fgColor:{rgb:ZEBRA} } : undefined
         };
-        if(C >= 1){ ws[addr].z = currencyFmt; }
-        if(C === 6){ style.font.bold = true; style.font.color = {rgb:'0F6B5C'}; }
+        if(C >= 1) ws[addr].z = currencyFmt;
+        if(C === 6){
+          style.font.bold = true; style.font.color = {rgb:'0F6B5C'};
+          ws[addr].f = `SUM(B${excelRow}:F${excelRow})`;
+        }
         ws[addr].s = style;
       }
     }
 
-    // grand total row
+    // grand total row — every amount column as a SUM formula over the data range
+    const colLetters = ['B','C','D','E','F','G'];
     for(let C = 0; C <= 6; C++){
       const addr = XLSX.utils.encode_cell({r:lastRowIdx, c:C});
       if(!ws[addr]) continue;
-      if(C >= 1) ws[addr].z = currencyFmt;
+      if(C >= 1){
+        ws[addr].z = currencyFmt;
+        ws[addr].f = `SUM(${colLetters[C-1]}${dataFirstRow+1}:${colLetters[C-1]}${dataLastExcelRow})`;
+      }
       ws[addr].s = {
         font:{ bold:true, sz:11, color:{rgb:INK} },
         fill:{ fgColor:{rgb:AMBER} },
-        alignment:{ horizontal: C===0 ? 'left':'right', vertical:'center' },
+        alignment:{ horizontal: C===0 ? 'center':'right', vertical:'center' },
         border
       };
     }
