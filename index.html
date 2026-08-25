@@ -12,12 +12,10 @@
     --panel-2:#123540;
     --line: #1e4753;
     --amber:#f2a541;
-    --amber-dim: #7a5a25;
     --teal:#33c9b0;
     --text:#eaf3f3;
     --text-dim:#9fb8bd;
     --danger:#e2604f;
-    --good:#33c9b0;
     --mono: 'IBM Plex Mono', 'Courier New', monospace;
     --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
   }
@@ -43,11 +41,11 @@
     animation: shimmer 6s ease-in-out infinite;
   }
   @keyframes shimmer{ 0%{background-position:0% 0;} 50%{background-position:100% 0;} 100%{background-position:0% 0;} }
-
   @keyframes fadeUp{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
   .grid .slot{ animation: fadeUp .5s ease both; }
-  .grid .slot:nth-child(2){ animation-delay:.08s; }
-  .grid .slot:nth-child(3){ animation-delay:.16s; }
+  .grid .slot:nth-child(2){ animation-delay:.06s; }
+  .grid .slot:nth-child(3){ animation-delay:.12s; }
+  .grid .slot:nth-child(4){ animation-delay:.18s; }
   #results{ animation: fadeUp .4s ease both; }
 
   .bolt{
@@ -58,7 +56,7 @@
   }
   .title-row{display:flex; align-items:center;}
 
-  .wrap{max-width:1080px;margin:0 auto;}
+  .wrap{max-width:1180px;margin:0 auto;}
 
   header.top{
     display:flex; align-items:flex-end; justify-content:space-between;
@@ -70,10 +68,8 @@
     color:var(--amber); margin:0 0 8px;
   }
   h1{margin:0; font-size:28px; font-weight:700; letter-spacing:-0.01em;}
-  .sub{color:var(--text-dim); font-size:14px; margin-top:6px; max-width:520px;}
-  .meter{
-    font-family:var(--mono); text-align:right; font-size:12px; color:var(--text-dim);
-  }
+  .sub{color:var(--text-dim); font-size:14px; margin-top:6px; max-width:580px;}
+  .meter{ font-family:var(--mono); text-align:right; font-size:12px; color:var(--text-dim); }
   .meter b{display:block; font-size:26px; color:var(--teal); font-weight:700;}
 
   .rules-card{
@@ -84,7 +80,7 @@
   .rules-card ul{margin:8px 0 0; padding-left:18px; line-height:1.7;}
 
   .grid{
-    display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr));
+    display:grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr));
     gap:16px; margin-bottom:28px;
   }
   .slot{
@@ -115,7 +111,6 @@
   .filelist{margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--text-dim); list-style:none; padding:0;}
   .filelist li{display:flex; justify-content:space-between; gap:8px; padding:3px 0; border-top:1px solid var(--line);}
   .filelist li span.nm{color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .filelist li button{background:none; border:none; color:var(--danger); cursor:pointer; font-size:13px;}
 
   .actions{display:flex; align-items:center; gap:14px; margin-bottom:28px; flex-wrap:wrap;}
   button.primary{
@@ -135,40 +130,44 @@
   #status.err{color:var(--danger);}
 
   .summary-strip{
-    display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:22px;
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:22px;
   }
   .stat{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:16px;}
-  .stat .l{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim);}
-  .stat .v{font-family:var(--mono); font-size:22px; font-weight:700; color:var(--teal); margin-top:6px;}
+  .stat .l{font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim);}
+  .stat .v{font-family:var(--mono); font-size:19px; font-weight:700; color:var(--teal); margin-top:6px;}
+  .stat.grand{border-color:var(--amber);}
+  .stat.grand .v{color:var(--amber); font-size:21px;}
 
-  .table-card{background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden;}
-  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  .table-card{background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; overflow-x:auto;}
+  table{width:100%; border-collapse:collapse; font-size:13px; min-width:900px;}
   thead th{
-    text-align:right; padding:12px 16px; font-family:var(--mono); font-size:11px;
-    text-transform:uppercase; letter-spacing:.06em; color:var(--amber);
-    border-bottom:1px solid var(--line); background:rgba(255,255,255,.02);
+    text-align:right; padding:12px 14px; font-family:var(--mono); font-size:10.5px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--amber);
+    border-bottom:1px solid var(--line); background:rgba(255,255,255,.02); line-height:1.4;
   }
   thead th:first-child{text-align:left;}
-  tbody td{padding:10px 16px; text-align:right; font-family:var(--mono); border-bottom:1px solid rgba(255,255,255,.05); color:var(--text);}
-  tbody td:first-child{text-align:left; color:var(--text-dim); font-family:var(--sans);}
+  tbody td{padding:9px 14px; text-align:right; font-family:var(--mono); border-bottom:1px solid rgba(255,255,255,.05); color:var(--text);}
+  tbody td:first-child{text-align:left; color:var(--text-dim); font-family:var(--sans); white-space:nowrap;}
+  tbody td.zero{color:var(--text-dim); opacity:.45;}
   tbody tr:hover td{background:rgba(255,255,255,.025);}
-  tfoot td{padding:14px 16px; text-align:right; font-family:var(--mono); font-weight:700; color:var(--teal); border-top:2px solid var(--teal); background:rgba(51,201,176,.06);}
+  tfoot td{padding:14px 14px; text-align:right; font-family:var(--mono); font-weight:700; color:var(--teal); border-top:2px solid var(--teal); background:rgba(51,201,176,.06);}
   tfoot td:first-child{text-align:left; color:var(--teal); font-family:var(--sans);}
   .empty-row td{text-align:center; color:var(--text-dim); font-family:var(--sans); padding:36px;}
 
   .total-cell{ position:relative; display:flex; align-items:center; justify-content:flex-end; height:22px; }
   .total-bar{
     position:absolute; right:0; top:50%; transform:translateY(-50%); height:100%;
-    background:linear-gradient(90deg, rgba(51,201,176,.05), rgba(51,201,176,.22));
+    background:linear-gradient(90deg, rgba(242,165,65,.05), rgba(242,165,65,.22));
     border-radius:5px; z-index:0;
   }
-  .total-val{ position:relative; z-index:1; font-weight:700; color:var(--teal); padding-right:2px; }
+  .total-val{ position:relative; z-index:1; font-weight:700; color:var(--amber); padding-right:2px; }
 
   .foot-actions{display:flex; justify-content:flex-end; gap:10px; padding:14px 16px; border-top:1px solid var(--line);}
 
   footer.page{margin-top:36px; text-align:center; color:var(--text-dim); font-size:12px; font-family:var(--mono);}
 </style>
 </head>
+<body>
 <div class="topbar"></div>
 <div class="wrap">
 
@@ -183,7 +182,7 @@
         </span>
         <h1>Online Collection Report</h1>
       </div>
-      <p class="sub">Upload the source reports below. This tool pulls out <b>only the ONLINE collector</b> entries — filtered per source as noted — reads every sheet in every workbook, and rolls it all up date-wise. Everything runs in your browser; no file leaves this page.</p>
+      <p class="sub">Upload the four source reports below. Reads every sheet in every workbook and builds a date-wise pivot — one column per collection channel. Everything runs in your browser; no file leaves this page.</p>
     </div>
     <div class="meter">
       Sources loaded
@@ -194,9 +193,10 @@
   <div class="rules-card">
     <b>What gets picked up from each file</b>
     <ul>
-      <li><b>MIS Daily Collection</b> — rows where Collector Id = <b>ONLINE</b>, restricted to purpose <b>ENERGY BILL</b> and <b>DISCONNECTION/RECONNECTION CHARGE (RCDC)</b> only. All other purposes are ignored.</li>
-      <li><b>Prepaid Recharge Report</b> — rows marked <b>Online Recharge</b>.</li>
-      <li><b>Smart Prepaid Recharge Report</b> — rows where Collector ID = <b>ONLINE</b>. You can drop both smart-prepaid files into the same slot; they'll be combined.</li>
+      <li><b>MIS Daily Collection</b> — Collector Id = <b>ONLINE</b> only, split into two columns: <b>RC/DC</b> (Disconnection/Reconnection Charge) and <b>Energy Bill</b>. All other purposes ignored.</li>
+      <li><b>Prepaid Recharge Report</b> — rows marked <b>Online Recharge</b> → Online Prepaid Meter column.</li>
+      <li><b>Smart Prepaid Recharge Report</b> — Collector ID = <b>ONLINE</b> → Online Smart Prepaid column.</li>
+      <li><b>Smart Prepaid Recharge Report (Cash OS)</b> — the second smart-prepaid export, Collector ID = <b>ONLINE</b> → its own Online Smart Prepaid (cash_os) column.</li>
     </ul>
   </div>
 
@@ -204,8 +204,8 @@
     <div class="slot" id="slot-mis">
       <span class="tag">File 1</span>
       <h3>MIS Daily Collection</h3>
-      <p class="hint">CSV export — Cash/Cheque/RTGS ledger with Collector Id &amp; Purpose columns.</p>
-      <div class="filter-note">Filter: ONLINE + (Energy Bill or RCDC)</div>
+      <p class="hint">CSV export with Collector Id &amp; Purpose columns.</p>
+      <div class="filter-note">ONLINE → RC/DC + Energy Bill</div>
       <div class="dropzone" data-for="mis">Click or drop .csv here</div>
       <input type="file" id="mis" accept=".csv" />
       <ul class="filelist" id="mis-list"></ul>
@@ -214,21 +214,31 @@
     <div class="slot" id="slot-prepaid">
       <span class="tag">File 2</span>
       <h3>Prepaid Recharge Report</h3>
-      <p class="hint">.xls export with a Remarks column marking Online Recharge.</p>
-      <div class="filter-note">Filter: Remarks = Online Recharge</div>
+      <p class="hint">.xls export with a Remarks column.</p>
+      <div class="filter-note">Remarks = Online Recharge</div>
       <div class="dropzone" data-for="prepaid">Click or drop .xls here</div>
       <input type="file" id="prepaid" accept=".xls,.xlsx" />
       <ul class="filelist" id="prepaid-list"></ul>
     </div>
 
     <div class="slot" id="slot-smart">
-      <span class="tag">Files 3 &amp; 4</span>
-      <h3>Smart Prepaid Recharge Report(s)</h3>
-      <p class="hint">.xls exports with a Collector ID column. Add both smart-prepaid files here — they're combined automatically.</p>
-      <div class="filter-note">Filter: Collector ID = ONLINE</div>
-      <div class="dropzone" data-for="smart">Click or drop .xls file(s) here</div>
-      <input type="file" id="smart" accept=".xls,.xlsx" multiple />
+      <span class="tag">File 3</span>
+      <h3>Smart Prepaid Recharge Report</h3>
+      <p class="hint">Main .xls export — all sheets combined.</p>
+      <div class="filter-note">Collector ID = ONLINE</div>
+      <div class="dropzone" data-for="smart">Click or drop .xls here</div>
+      <input type="file" id="smart" accept=".xls,.xlsx" />
       <ul class="filelist" id="smart-list"></ul>
+    </div>
+
+    <div class="slot" id="slot-smartcash">
+      <span class="tag">File 4</span>
+      <h3>Smart Prepaid — Cash OS</h3>
+      <p class="hint">The second smart-prepaid export, kept as its own column.</p>
+      <div class="filter-note">Collector ID = ONLINE</div>
+      <div class="dropzone" data-for="smartcash">Click or drop .xls here</div>
+      <input type="file" id="smartcash" accept=".xls,.xlsx" />
+      <ul class="filelist" id="smartcash-list"></ul>
     </div>
   </div>
 
@@ -246,10 +256,12 @@
         <thead>
           <tr>
             <th>Date</th>
-            <th>MIS Online<br>(Energy + RCDC)</th>
-            <th>Prepaid Recharge<br>Online</th>
-            <th>Smart Prepaid<br>Online</th>
-            <th>Total Online<br>Collection</th>
+            <th>Online<br>RC/DC</th>
+            <th>Online Energy<br>Bill</th>
+            <th>Online Prepaid<br>Meter</th>
+            <th>Online Smart<br>Prepaid</th>
+            <th>Online Smart Prepaid<br>(cash_os)</th>
+            <th>Grand Total</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -267,10 +279,11 @@
 
 <script>
 (function(){
-  const state = { mis: null, prepaid: null, smart: [] };
+  const state = { mis: null, prepaid: null, smart: null, smartcash: null };
+  const HEADER = ['Date','Online RC/DC','Online Energy Bill','Online Prepaid Meter','Online Smart Prepaid','Online Smart Prepaid (cash_os)','Grand Total'];
 
   const fmt = n => n.toLocaleString('en-IN', {maximumFractionDigits: 0});
-  const rupee = n => '₹' + fmt(n);
+  const rupee = n => n ? '₹' + fmt(n) : '—';
 
   function setStatus(msg, isErr){
     const el = document.getElementById('status');
@@ -279,12 +292,9 @@
   }
 
   function updateLoadedCount(){
-    let n = 0;
-    if(state.mis) n++;
-    if(state.prepaid) n++;
-    if(state.smart.length) n++; // counts as one slot but represents files 3 & 4
-    document.getElementById('loadedCount').textContent = (state.mis?1:0)+(state.prepaid?1:0)+state.smart.length + ' / 4';
-    document.getElementById('genBtn').disabled = !(state.mis && state.prepaid && state.smart.length);
+    const n = (state.mis?1:0)+(state.prepaid?1:0)+(state.smart?1:0)+(state.smartcash?1:0);
+    document.getElementById('loadedCount').textContent = n + ' / 4';
+    document.getElementById('genBtn').disabled = n < 4;
   }
 
   // ---------- date normalisation ----------
@@ -297,7 +307,6 @@
       if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
     }
     if(v instanceof Date && !isNaN(v)) {
-      // fallback only — read using UTC getters, matching how such dates are built
       return `${v.getUTCFullYear()}-${String(v.getUTCMonth()+1).padStart(2,'0')}-${String(v.getUTCDate()).padStart(2,'0')}`;
     }
     if(typeof v === 'string'){
@@ -305,10 +314,7 @@
       let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
       if(m) return `${m[1]}-${m[2]}-${m[3]}`;
       m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-      if(m){
-        // ambiguous dd/mm vs mm/dd - assume dd/mm/yyyy (India)
-        return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
-      }
+      if(m) return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
       const parsed = new Date(s + 'T00:00:00Z');
       if(!isNaN(parsed)) return parsed.toISOString().slice(0,10);
     }
@@ -316,9 +322,9 @@
   }
 
   // ---------- generic multi-sheet, header-optional reader ----------
-  // Some report exports only carry a header row on the first sheet; later
-  // sheets in the same workbook continue the data with no header at all.
-  // This detects that and falls back to the known column order.
+  // Some exports only carry a header row on the first sheet; later sheets in
+  // the same workbook continue the data with no header at all. This detects
+  // that and falls back to the known column order.
   function readSheetAsObjects(sheet, expectedHeader){
     const aoa = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
     if(!aoa.length) return [];
@@ -328,18 +334,12 @@
     const dataRows = hasHeader ? aoa.slice(1) : aoa;
     return dataRows
       .filter(r => r.some(c => c !== ''))
-      .map(r => {
-        const obj = {};
-        header.forEach((h, i) => obj[h] = r[i]);
-        return obj;
-      });
+      .map(r => { const obj = {}; header.forEach((h,i) => obj[h] = r[i]); return obj; });
   }
 
   function readAllSheets(workbook, expectedHeader){
     let rows = [];
-    workbook.SheetNames.forEach(name => {
-      rows = rows.concat(readSheetAsObjects(workbook.Sheets[name], expectedHeader));
-    });
+    workbook.SheetNames.forEach(name => { rows = rows.concat(readSheetAsObjects(workbook.Sheets[name], expectedHeader)); });
     return rows;
   }
 
@@ -350,10 +350,8 @@
     for(let i=0;i<text.length;i++){
       const c = text[i];
       if(inQuotes){
-        if(c === '"'){
-          if(text[i+1] === '"'){ field += '"'; i++; }
-          else inQuotes = false;
-        } else field += c;
+        if(c === '"'){ if(text[i+1] === '"'){ field += '"'; i++; } else inQuotes = false; }
+        else field += c;
       } else {
         if(c === '"') inQuotes = true;
         else if(c === ','){ row.push(field); field=''; }
@@ -366,24 +364,22 @@
     return rows.filter(r => r.length && r.some(c => c !== ''));
   }
 
-  // ---------- File 1: MIS Daily Collection CSV ----------
+  // ---------- File 1: MIS Daily Collection CSV → { rcdc: {date:amt}, energy: {date:amt} } ----------
   function processMIS(text){
     const rows = parseCSV(text);
-    // header row may have fewer columns than data rows (Purpose column often unlabeled)
     const dataRows = rows.slice(1);
-    const byDate = {};
-    const KEEP_PURPOSES = ['ENERGY BILL', 'DISCONNECTION RECONNECTION CHARGE'];
+    const rcdc = {}, energy = {};
     dataRows.forEach(r => {
       if(r.length < 10) return;
       const date = toISODate(r[1]);
       const collector = (r[8] || '').trim().toUpperCase();
       const purpose = (r[9] || '').trim().toUpperCase();
       if(!date || collector !== 'ONLINE') return;
-      if(!KEEP_PURPOSES.includes(purpose)) return;
       const amt = [2,3,4,5,6,7].reduce((s,idx) => s + (parseFloat(r[idx]) || 0), 0);
-      byDate[date] = (byDate[date] || 0) + amt;
+      if(purpose === 'DISCONNECTION RECONNECTION CHARGE'){ rcdc[date] = (rcdc[date]||0) + amt; }
+      else if(purpose === 'ENERGY BILL'){ energy[date] = (energy[date]||0) + amt; }
     });
-    return byDate;
+    return { rcdc, energy };
   }
 
   // ---------- File 2: Prepaid Recharge Report ----------
@@ -396,8 +392,7 @@
       if(!remarks.includes('online')) return;
       const date = toISODate(r['Payment Date']);
       if(!date) return;
-      const amt = parseFloat(r['Amount Paid']) || 0;
-      byDate[date] = (byDate[date] || 0) + amt;
+      byDate[date] = (byDate[date] || 0) + (parseFloat(r['Amount Paid']) || 0);
     });
     return byDate;
   }
@@ -425,18 +420,14 @@
   function renderFileList(id, names){
     const ul = document.getElementById(id);
     ul.innerHTML = '';
-    names.forEach((n, idx) => {
-      const li = document.createElement('li');
-      li.innerHTML = `<span class="nm">${n}</span>`;
-      ul.appendChild(li);
-    });
+    names.forEach(n => { const li = document.createElement('li'); li.innerHTML = `<span class="nm">${n}</span>`; ul.appendChild(li); });
   }
 
   async function handleMIS(file){
     setStatus('Reading MIS Daily Collection…');
     try{
       const text = await readAsText(file);
-      state.mis = { name:file.name, byDate: processMIS(text) };
+      state.mis = processMIS(text);
       document.getElementById('slot-mis').classList.add('ready');
       renderFileList('mis-list', [file.name]);
       setStatus('');
@@ -448,7 +439,7 @@
     setStatus('Reading Prepaid Recharge Report…');
     try{
       const wb = await readAsWorkbook(file);
-      state.prepaid = { name:file.name, byDate: processPrepaid(wb) };
+      state.prepaid = processPrepaid(wb);
       document.getElementById('slot-prepaid').classList.add('ready');
       renderFileList('prepaid-list', [file.name]);
       setStatus('');
@@ -456,25 +447,34 @@
     updateLoadedCount();
   }
 
-  async function handleSmart(files){
-    setStatus('Reading Smart Prepaid Recharge Report(s)…');
+  async function handleSmart(file){
+    setStatus('Reading Smart Prepaid Recharge Report…');
     try{
-      const list = [];
-      for(const file of files){
-        const wb = await readAsWorkbook(file);
-        list.push({ name:file.name, byDate: processSmart(wb) });
-      }
-      state.smart = list;
+      const wb = await readAsWorkbook(file);
+      state.smart = processSmart(wb);
       document.getElementById('slot-smart').classList.add('ready');
-      renderFileList('smart-list', list.map(x=>x.name));
+      renderFileList('smart-list', [file.name]);
       setStatus('');
-    } catch(e){ setStatus('Could not read Smart Prepaid file(s): ' + e.message, true); }
+    } catch(e){ setStatus('Could not read Smart Prepaid file: ' + e.message, true); }
+    updateLoadedCount();
+  }
+
+  async function handleSmartCash(file){
+    setStatus('Reading Smart Prepaid (Cash OS) Report…');
+    try{
+      const wb = await readAsWorkbook(file);
+      state.smartcash = processSmart(wb);
+      document.getElementById('slot-smartcash').classList.add('ready');
+      renderFileList('smartcash-list', [file.name]);
+      setStatus('');
+    } catch(e){ setStatus('Could not read Smart Prepaid (Cash OS) file: ' + e.message, true); }
     updateLoadedCount();
   }
 
   document.getElementById('mis').addEventListener('change', e => { if(e.target.files[0]) handleMIS(e.target.files[0]); });
   document.getElementById('prepaid').addEventListener('change', e => { if(e.target.files[0]) handlePrepaid(e.target.files[0]); });
-  document.getElementById('smart').addEventListener('change', e => { if(e.target.files.length) handleSmart([...e.target.files]); });
+  document.getElementById('smart').addEventListener('change', e => { if(e.target.files[0]) handleSmart(e.target.files[0]); });
+  document.getElementById('smartcash').addEventListener('change', e => { if(e.target.files[0]) handleSmartCash(e.target.files[0]); });
 
   document.querySelectorAll('.dropzone').forEach(dz => {
     const key = dz.dataset.for;
@@ -489,13 +489,18 @@
       if(!files.length) return;
       if(key === 'mis') handleMIS(files[0]);
       else if(key === 'prepaid') handlePrepaid(files[0]);
-      else if(key === 'smart') handleSmart(files);
+      else if(key === 'smart') handleSmart(files[0]);
+      else if(key === 'smartcash') handleSmartCash(files[0]);
     });
   });
 
   document.getElementById('resetBtn').addEventListener('click', () => {
-    state.mis = null; state.prepaid = null; state.smart = [];
-    ['mis','prepaid','smart'].forEach(id => { document.getElementById(id).value = ''; document.getElementById(id+'-list').innerHTML=''; document.getElementById('slot-'+id).classList.remove('ready'); });
+    state.mis = null; state.prepaid = null; state.smart = null; state.smartcash = null;
+    ['mis','prepaid','smart','smartcash'].forEach(id => {
+      document.getElementById(id).value = '';
+      document.getElementById(id+'-list').innerHTML = '';
+      document.getElementById('slot-'+id).classList.remove('ready');
+    });
     document.getElementById('results').style.display = 'none';
     setStatus('');
     updateLoadedCount();
@@ -506,53 +511,51 @@
 
   document.getElementById('genBtn').addEventListener('click', () => {
     const allDates = new Set();
-    [state.mis.byDate, state.prepaid.byDate, ...state.smart.map(s=>s.byDate)].forEach(obj => {
+    [state.mis.rcdc, state.mis.energy, state.prepaid, state.smart, state.smartcash].forEach(obj => {
       Object.keys(obj).forEach(d => allDates.add(d));
     });
-    const smartCombined = {};
-    state.smart.forEach(s => Object.entries(s.byDate).forEach(([d,v]) => smartCombined[d] = (smartCombined[d]||0)+v));
-
     const dates = [...allDates].sort();
     const rows = dates.map(d => {
-      const mis = state.mis.byDate[d] || 0;
-      const prepaid = state.prepaid.byDate[d] || 0;
-      const smart = smartCombined[d] || 0;
-      return { date:d, mis, prepaid, smart, total: mis+prepaid+smart };
+      const rcdc = state.mis.rcdc[d] || 0;
+      const energy = state.mis.energy[d] || 0;
+      const prepaid = state.prepaid[d] || 0;
+      const smart = state.smart[d] || 0;
+      const smartcash = state.smartcash[d] || 0;
+      return { date:d, rcdc, energy, prepaid, smart, smartcash, total: rcdc+energy+prepaid+smart+smartcash };
     });
     lastRows = rows;
     renderResults(rows);
   });
+
+  function cell(v){ return `<td class="${v?'':'zero'}">${rupee(v)}</td>`; }
 
   function renderResults(rows){
     const tbody = document.getElementById('tbody');
     const tfoot = document.getElementById('tfoot');
     tbody.innerHTML = '';
     if(!rows.length){
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="5">No online collection rows found across the uploaded files.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No online collection rows found across the uploaded files.</td></tr>';
     } else {
       const maxTotal = Math.max(...rows.map(r => r.total), 1);
       rows.forEach(r => {
         const tr = document.createElement('tr');
         const pct = Math.max(4, Math.round((r.total / maxTotal) * 100));
-        tr.innerHTML = `<td>${formatDisplayDate(r.date)}</td><td>${rupee(r.mis)}</td><td>${rupee(r.prepaid)}</td><td>${rupee(r.smart)}</td>
-          <td>
-            <div class="total-cell">
-              <span class="total-bar" style="width:${pct}%"></span>
-              <span class="total-val">${rupee(r.total)}</span>
-            </div>
-          </td>`;
+        tr.innerHTML = `<td>${formatDisplayDate(r.date)}</td>${cell(r.rcdc)}${cell(r.energy)}${cell(r.prepaid)}${cell(r.smart)}${cell(r.smartcash)}
+          <td><div class="total-cell"><span class="total-bar" style="width:${pct}%"></span><span class="total-val">${rupee(r.total)}</span></div></td>`;
         tbody.appendChild(tr);
       });
     }
     const sum = k => rows.reduce((s,r)=>s+r[k],0);
-    tfoot.innerHTML = `<tr><td>Total</td><td>${rupee(sum('mis'))}</td><td>${rupee(sum('prepaid'))}</td><td>${rupee(sum('smart'))}</td><td>${rupee(sum('total'))}</td></tr>`;
+    tfoot.innerHTML = `<tr><td>Grand Total</td><td>${rupee(sum('rcdc'))}</td><td>${rupee(sum('energy'))}</td><td>${rupee(sum('prepaid'))}</td><td>${rupee(sum('smart'))}</td><td>${rupee(sum('smartcash'))}</td><td>${rupee(sum('total'))}</td></tr>`;
 
     const strip = document.getElementById('summaryStrip');
     strip.innerHTML = `
-      <div class="stat"><div class="l">MIS Online (Energy + RCDC)</div><div class="v">${rupee(sum('mis'))}</div></div>
-      <div class="stat"><div class="l">Prepaid Recharge Online</div><div class="v">${rupee(sum('prepaid'))}</div></div>
-      <div class="stat"><div class="l">Smart Prepaid Online</div><div class="v">${rupee(sum('smart'))}</div></div>
-      <div class="stat"><div class="l">Grand Total</div><div class="v">${rupee(sum('total'))}</div></div>
+      <div class="stat"><div class="l">Online RC/DC</div><div class="v">${rupee(sum('rcdc'))}</div></div>
+      <div class="stat"><div class="l">Online Energy Bill</div><div class="v">${rupee(sum('energy'))}</div></div>
+      <div class="stat"><div class="l">Online Prepaid Meter</div><div class="v">${rupee(sum('prepaid'))}</div></div>
+      <div class="stat"><div class="l">Online Smart Prepaid</div><div class="v">${rupee(sum('smart'))}</div></div>
+      <div class="stat"><div class="l">Smart Prepaid (cash_os)</div><div class="v">${rupee(sum('smartcash'))}</div></div>
+      <div class="stat grand"><div class="l">Grand Total</div><div class="v">${rupee(sum('total'))}</div></div>
     `;
     document.getElementById('results').style.display = 'block';
     setStatus(`Report generated — ${rows.length} date(s).`);
@@ -566,10 +569,10 @@
 
   document.getElementById('downloadCsvBtn').addEventListener('click', () => {
     if(!lastRows.length) return;
-    let csv = 'Date,MIS Online (Energy+RCDC),Prepaid Recharge Online,Smart Prepaid Online,Total Online Collection\n';
-    lastRows.forEach(r => { csv += `${r.date},${r.mis},${r.prepaid},${r.smart},${r.total}\n`; });
+    let csv = HEADER.join(',') + '\n';
+    lastRows.forEach(r => { csv += `${r.date},${r.rcdc},${r.energy},${r.prepaid},${r.smart},${r.smartcash},${r.total}\n`; });
     const sum = k => lastRows.reduce((s,r)=>s+r[k],0);
-    csv += `Total,${sum('mis')},${sum('prepaid')},${sum('smart')},${sum('total')}\n`;
+    csv += `Grand Total,${sum('rcdc')},${sum('energy')},${sum('prepaid')},${sum('smart')},${sum('smartcash')},${sum('total')}\n`;
     const blob = new Blob([csv], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -581,31 +584,23 @@
   document.getElementById('downloadXlsxBtn').addEventListener('click', () => {
     if(!lastRows.length) return;
     const sum = k => lastRows.reduce((s,r)=>s+r[k],0);
-    const header = ['Date','MIS Online (Energy + RCDC)','Prepaid Recharge Online','Smart Prepaid Online','Total Online Collection'];
-    const aoa = [header];
-    lastRows.forEach(r => aoa.push([formatDisplayDate(r.date), r.mis, r.prepaid, r.smart, r.total]));
-    aoa.push(['Total', sum('mis'), sum('prepaid'), sum('smart'), sum('total')]);
+    const aoa = [HEADER];
+    lastRows.forEach(r => aoa.push([formatDisplayDate(r.date), r.rcdc||'', r.energy||'', r.prepaid||'', r.smart||'', r.smartcash||'', r.total]));
+    aoa.push(['Grand Total', sum('rcdc'), sum('energy'), sum('prepaid'), sum('smart'), sum('smartcash'), sum('total')]);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:16},{wch:24},{wch:22},{wch:20},{wch:22}];
+    ws['!cols'] = [{wch:14},{wch:14},{wch:16},{wch:18},{wch:18},{wch:22},{wch:16}];
     const currencyFmt = '#,##0';
-    const lastRow = aoa.length; // 1-indexed incl header
+    const lastRow = aoa.length;
     for(let R = 1; R < lastRow; R++){
-      for(let C = 1; C <= 4; C++){
+      for(let C = 1; C <= 6; C++){
         const addr = XLSX.utils.encode_cell({r:R, c:C});
         if(ws[addr]) ws[addr].z = currencyFmt;
       }
     }
-    // bold header + total row (works in clients that honour cell styles, e.g. Excel desktop)
     const boldStyle = { font: { bold: true } };
-    header.forEach((_, C) => {
-      const addr = XLSX.utils.encode_cell({r:0, c:C});
-      if(ws[addr]) ws[addr].s = boldStyle;
-    });
-    for(let C = 0; C <= 4; C++){
-      const addr = XLSX.utils.encode_cell({r:lastRow-1, c:C});
-      if(ws[addr]) ws[addr].s = boldStyle;
-    }
+    HEADER.forEach((_, C) => { const addr = XLSX.utils.encode_cell({r:0, c:C}); if(ws[addr]) ws[addr].s = boldStyle; });
+    for(let C = 0; C <= 6; C++){ const addr = XLSX.utils.encode_cell({r:lastRow-1, c:C}); if(ws[addr]) ws[addr].s = boldStyle; }
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Online Collection');
