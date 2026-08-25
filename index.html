@@ -450,6 +450,23 @@
     return CATEGORY_ALIASES[key] || c;
   }
 
+  // Billing Payment Status prefixes most (not all) feeder names with "032-" and suffixes many with
+  // "11 KV" / "11KV" — strip both so the feeder reads the same everywhere
+  // (e.g. "032-ABHAYAPURI TOWN 11 KV" -> "ABHAYAPURI TOWN"). "33KV ..." names are left untouched —
+  // only the "11 KV"/"11KV" suffix is stripped, not other voltage labels.
+  const GHOST_CONSUMER_FEEDER = 'GHOST CONSUMER FEEDER';
+  function normalizeFeeder(f){
+    const v = norm(f);
+    if(!v) return v;
+    return v.replace(/^032-\s*/i, '').replace(/\s*11\s*KV\s*$/i, '').trim();
+  }
+  // Extra-payment consumers (paid an energy bill, no ARMS Billing row) whose Billing Payment Status
+  // feeder is the placeholder "Ghost Consumer Feeder" are routed into Dummy Feeder instead — that
+  // placeholder isn't a real feeder any more than "no feeder on record" is.
+  function feederForExtraPayment(feeder){
+    return feeder === GHOST_CONSUMER_FEEDER ? DUMMY_FEEDER : feeder;
+  }
+
   let lastResult = null;
 
   function generate(){
@@ -490,7 +507,7 @@
         status: norm(row['Meter Type']) || 'UNKNOWN',
         outstanding: num(row['Outstanding']),
         category: normalizeCategory(row['Category']) || '(unspecified)',
-        feeder: norm(row['Feeder Name']) || DUMMY_FEEDER
+        feeder: normalizeFeeder(row['Feeder Name']) || DUMMY_FEEDER
       });
     }
 
@@ -568,19 +585,20 @@
       const b = bpMap.get(cno);
       if(b){
         const status = b.status === 'SMART' ? 'SMART' : 'NON_SMART';
+        const feeder = feederForExtraPayment(b.feeder);
         const g = ensureGroup(b.category, status);
         g.payment += amt;
-        const fg = ensureFeederGroup(b.feeder, status);
+        const fg = ensureFeederGroup(feeder, status);
         fg.payment += amt;
         extraMatchedTotal += amt; extraMatchedCount += 1;
-        extraDetail.push({consumer:cno, category:b.category, feeder:b.feeder, status, payment:round2(amt), source:'Billing Payment Status'});
+        extraDetail.push({consumer:cno, category:b.category, feeder, status, payment:round2(amt), source:'Billing Payment Status'});
         extraMainListRows.push({
           'Sl. No': sl++,
           'Consumer No': cno,
           'status': b.status,
           'payment': round2(amt),
           'outstanding': round2(b.outstanding),
-          'Feeder': b.feeder,
+          'Feeder': feeder,
           'Category Code Name': b.category
         });
       } else {
@@ -689,7 +707,7 @@
       adj.extraMatchedCount + ' consumer(s) paid an energy bill but have no ARMS Billing row — ' + fmt(adj.extraMatchedTotal) + ' added to payment, category/feeder/status taken from Billing Payment Status.',
       adj.extraUnmatchedCount + ' consumer(s) paid an energy bill and were not found in either ARMS Billing or Billing Payment Status — ' + fmt(adj.extraUnmatchedTotal) + ' defaulted into "' + FALLBACK_DOMESTIC_CATEGORY + '" category / "' + DUMMY_FEEDER + '" feeder / SMART payment for the summary sheets.',
       'All ' + (adj.extraMatchedCount + adj.extraUnmatchedCount) + ' of these "no ARMS bill" consumers are also appended at the end of Main List, showing their real status/category/feeder/outstanding where known, or "NA" where nothing could be found — cd (Current Demand) is left blank since there is no ARMS bill to read it from.',
-      'Feeder wise CD groups every matched consumer by Billing Payment Status\'s Feeder Name; consumers with no feeder on record fall into "' + DUMMY_FEEDER + '".'
+      'Feeder wise CD groups every matched consumer by Billing Payment Status\'s Feeder Name (with any leading "032-" and trailing "11 KV" stripped); consumers with no feeder on record fall into "' + DUMMY_FEEDER + '". For "no ARMS bill" extra payments specifically, a "' + GHOST_CONSUMER_FEEDER + '" feeder is also redirected into "' + DUMMY_FEEDER + '".'
     ];
     for(const t of noteItems){
       const li = document.createElement('li');
