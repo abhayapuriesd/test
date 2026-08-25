@@ -820,8 +820,12 @@
         subHeaders.forEach((label, i) => { h2.getCell(7+i).value = label; });   // G..K under SMART
         for(const r of [h1,h2]){
           r.eachCell({includeEmpty:true}, cell => styleHeaderCell(cell));
-          r.height = 20;
         }
+        // Row 2 carries two-word wrapped sub-headers ("No of Consumes", "Current Demand", ...) in
+        // cells that are NOT merged with row 1, so row 2 alone needs enough height for two text
+        // lines — otherwise the second line gets clipped/cramped against the row below.
+        h1.height = 22;
+        h2.height = 34;
 
         let rIdx = 3;
         summaryRows.forEach((r, i) => {
