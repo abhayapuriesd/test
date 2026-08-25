@@ -3,971 +3,500 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Categorywise CD Builder</title>
+<title>Online Collection Report — Date-wise</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
   :root{
-    --ink:#0f1b2b;
-    --panel:#132338;
-    --panel-2:#0c1725;
-    --line:#22344a;
-    --brass:#e2a53e;
-    --brass-dim:#8a672a;
-    --volt:#5fd0c0;
-    --paper:#eef1f0;
-    --paper-dim:#9fb0c0;
-    --danger:#e2664a;
-    --ok:#6fbf7b;
-    --mono: 'JetBrains Mono','SFMono-Regular',Consolas,monospace;
-    --sans: 'Inter','Segoe UI',system-ui,sans-serif;
+    --bg:#0b1f26;
+    --panel:#0f2932;
+    --panel-2:#123540;
+    --line: #1e4753;
+    --amber:#f2a541;
+    --amber-dim: #7a5a25;
+    --teal:#33c9b0;
+    --text:#eaf3f3;
+    --text-dim:#9fb8bd;
+    --danger:#e2604f;
+    --good:#33c9b0;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
   }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
-    background:
-      radial-gradient(1200px 600px at 85% -10%, rgba(95,208,192,0.08), transparent 60%),
-      radial-gradient(900px 500px at -10% 110%, rgba(226,165,62,0.07), transparent 60%),
-      var(--ink);
-    color:var(--paper);
+    background: radial-gradient(1200px 800px at 85% -10%, #123c46 0%, var(--bg) 55%) fixed;
+    color:var(--text);
     font-family:var(--sans);
     min-height:100vh;
     padding:32px 20px 80px;
   }
-  .wrap{max-width:980px;margin:0 auto;}
 
-  header{
-    display:flex;align-items:flex-start;justify-content:space-between;gap:24px;
-    padding-bottom:22px;margin-bottom:28px;border-bottom:1px solid var(--line);
-  }
-  .brand{display:flex;align-items:center;gap:14px;}
-  .mark{
-    width:44px;height:44px;flex:0 0 44px;position:relative;
-  }
-  .mark svg{width:100%;height:100%;display:block;}
-  h1{font-size:21px;margin:0;letter-spacing:.2px;font-weight:650;}
-  .sub{color:var(--paper-dim);font-size:13px;margin-top:3px;letter-spacing:.2px;}
-  .badge{
-    font-family:var(--mono);font-size:11px;color:var(--brass);
-    border:1px solid var(--brass-dim);padding:5px 10px;border-radius:20px;
-    white-space:nowrap;letter-spacing:.5px;
-  }
+  .wrap{max-width:1080px;margin:0 auto;}
 
-  .steps{
-    display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px;
+  header.top{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap:20px; margin-bottom:28px; flex-wrap:wrap;
+    border-bottom:1px solid var(--line); padding-bottom:20px;
   }
-  .card{
-    background:linear-gradient(180deg,var(--panel),var(--panel-2));
-    border:1px solid var(--line);border-radius:12px;padding:18px;
-    position:relative;transition:border-color .15s ease, transform .15s ease;
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--amber); margin:0 0 8px;
   }
-  .card.done{border-color:rgba(111,191,123,0.55);}
-  .card.active{border-color:var(--brass-dim);}
-  .step-no{
-    font-family:var(--sans);font-size:15px;color:var(--paper);font-weight:650;
-    display:flex;align-items:center;gap:9px;margin-bottom:14px;letter-spacing:.1px;
+  h1{margin:0; font-size:28px; font-weight:700; letter-spacing:-0.01em;}
+  .sub{color:var(--text-dim); font-size:14px; margin-top:6px; max-width:520px;}
+  .meter{
+    font-family:var(--mono); text-align:right; font-size:12px; color:var(--text-dim);
   }
-  .step-no .dot{
-    width:7px;height:7px;border-radius:50%;background:var(--paper-dim);
-  }
-  .card.done .step-no .dot{background:var(--ok);}
-  .card.active .step-no .dot{background:var(--brass);}
-  .card h3{margin:0 0 6px;font-size:14.5px;font-weight:600;}
-  .card p{margin:0 0 12px;font-size:12.5px;color:var(--paper-dim);line-height:1.5;}
-  .drop{
-    border:1.5px dashed var(--line);border-radius:9px;padding:14px;
-    text-align:center;cursor:pointer;font-size:12.5px;color:var(--paper-dim);
-    transition:border-color .15s ease, background .15s ease;
-  }
-  .drop:hover{border-color:var(--brass-dim);background:rgba(226,165,62,0.04);}
-  .drop.filled{
-    border-style:solid;border-color:rgba(111,191,123,0.5);
-    background:rgba(111,191,123,0.06);color:var(--paper);
-  }
-  .drop input{display:none;}
-  .filename{font-family:var(--mono);font-size:11.5px;color:var(--ok);word-break:break-all;}
-  .rowcount{font-family:var(--mono);font-size:11px;color:var(--paper-dim);margin-top:4px;}
+  .meter b{display:block; font-size:26px; color:var(--teal); font-weight:700;}
 
-  .actionbar{
-    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-    background:var(--panel);border:1px solid var(--line);border-radius:12px;
-    padding:16px 18px;margin-bottom:22px;
+  .rules-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:16px 20px; margin-bottom:24px; font-size:13px; color:var(--text-dim);
   }
+  .rules-card b{color:var(--text);}
+  .rules-card ul{margin:8px 0 0; padding-left:18px; line-height:1.7;}
+
+  .grid{
+    display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr));
+    gap:16px; margin-bottom:28px;
+  }
+  .slot{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:18px; position:relative; transition:border-color .15s ease, transform .15s ease;
+  }
+  .slot.ready{border-color:var(--teal);}
+  .slot.drag{border-color:var(--amber); transform:translateY(-2px);}
+  .slot .tag{
+    font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--amber); margin-bottom:6px; display:block;
+  }
+  .slot h3{margin:0 0 4px; font-size:15px;}
+  .slot p.hint{margin:0 0 14px; font-size:12.5px; color:var(--text-dim); line-height:1.5;}
+  .slot .filter-note{
+    font-family:var(--mono); font-size:11px; color:var(--teal); background:rgba(51,201,176,.08);
+    border:1px dashed rgba(51,201,176,.35); border-radius:6px; padding:6px 8px; margin-bottom:12px;
+  }
+  .dropzone{
+    border:1.5px dashed var(--line); border-radius:8px; padding:14px;
+    text-align:center; cursor:pointer; font-size:12.5px; color:var(--text-dim);
+    transition:background .15s ease;
+  }
+  .dropzone:hover{background:rgba(255,255,255,.03);}
+  .slot input[type=file]{display:none;}
+  .filelist{margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--text-dim); list-style:none; padding:0;}
+  .filelist li{display:flex; justify-content:space-between; gap:8px; padding:3px 0; border-top:1px solid var(--line);}
+  .filelist li span.nm{color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .filelist li button{background:none; border:none; color:var(--danger); cursor:pointer; font-size:13px;}
+
+  .actions{display:flex; align-items:center; gap:14px; margin-bottom:28px; flex-wrap:wrap;}
   button.primary{
-    background:var(--brass);color:#1a1206;border:none;font-weight:650;
-    padding:11px 22px;border-radius:8px;font-size:14px;cursor:pointer;
-    font-family:var(--sans);letter-spacing:.2px;
-    transition:transform .1s ease, box-shadow .15s ease;
+    background:var(--amber); color:#20140a; border:none; font-weight:700;
+    font-family:var(--sans); font-size:14.5px; padding:13px 26px; border-radius:8px;
+    cursor:pointer; letter-spacing:.01em; transition:transform .12s ease, box-shadow .12s ease;
+    box-shadow:0 6px 18px -6px rgba(242,165,65,.5);
   }
-  button.primary:disabled{background:#3a4150;color:#6b7686;cursor:not-allowed;}
-  button.primary:not(:disabled):hover{box-shadow:0 0 0 3px rgba(226,165,62,0.18);}
-  button.primary:not(:disabled):active{transform:translateY(1px);}
-  .status{font-family:var(--mono);font-size:12.5px;color:var(--paper-dim);flex:1;min-width:220px;}
-  .status.err{color:var(--danger);}
-  .status.ok{color:var(--ok);}
+  button.primary:hover{transform:translateY(-1px);}
+  button.primary:disabled{opacity:.4; cursor:not-allowed; box-shadow:none; transform:none;}
+  button.ghost{
+    background:transparent; border:1px solid var(--line); color:var(--text-dim);
+    font-family:var(--mono); font-size:12.5px; padding:11px 18px; border-radius:8px; cursor:pointer;
+  }
+  button.ghost:hover{color:var(--text); border-color:var(--teal);}
+  #status{font-family:var(--mono); font-size:12.5px; color:var(--text-dim);}
+  #status.err{color:var(--danger);}
 
-  .results{display:none;}
-  .results.show{display:block;}
   .summary-strip{
-    display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:22px;
   }
-  .stat{
-    background:var(--panel);border:1px solid var(--line);border-radius:10px;
-    padding:14px 16px;
-  }
-  .stat .k{font-family:var(--mono);font-size:10.5px;color:var(--paper-dim);letter-spacing:.6px;text-transform:uppercase;}
-  .stat .v{font-family:var(--mono);font-size:19px;color:var(--brass);margin-top:5px;font-weight:600;}
+  .stat{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:16px;}
+  .stat .l{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim);}
+  .stat .v{font-family:var(--mono); font-size:22px; font-weight:700; color:var(--teal); margin-top:6px;}
 
-  .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
-  .panel-head h2{font-size:15px;margin:0;font-weight:600;}
-  .dl{
-    display:inline-flex;align-items:center;gap:8px;background:var(--volt);color:#052722;
-    padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:650;font-size:13.5px;
-    border:none;cursor:pointer;font-family:var(--sans);
-  }
-  .dl:hover{filter:brightness(1.06);}
-
-  table{
-    width:100%;border-collapse:collapse;font-size:12px;font-family:var(--mono);
-    background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;
-  }
+  .table-card{background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
   thead th{
-    background:var(--panel-2);color:var(--paper-dim);text-align:right;
-    padding:9px 10px;font-weight:600;border-bottom:1px solid var(--line);
-    font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;
+    text-align:right; padding:12px 16px; font-family:var(--mono); font-size:11px;
+    text-transform:uppercase; letter-spacing:.06em; color:var(--amber);
+    border-bottom:1px solid var(--line); background:rgba(255,255,255,.02);
   }
-  thead th:first-child,tbody td:first-child{text-align:left;}
-  tbody td{padding:8px 10px;text-align:right;border-bottom:1px solid rgba(34,52,74,0.6);white-space:nowrap;}
-  tbody tr:last-child td{border-bottom:none;}
-  tbody tr.grand{background:rgba(226,165,62,0.08);font-weight:700;color:var(--brass);}
-  .tablewrap{overflow-x:auto;border-radius:10px;}
+  thead th:first-child{text-align:left;}
+  tbody td{padding:10px 16px; text-align:right; font-family:var(--mono); border-bottom:1px solid rgba(255,255,255,.05); color:var(--text);}
+  tbody td:first-child{text-align:left; color:var(--text-dim); font-family:var(--sans);}
+  tbody tr:hover td{background:rgba(255,255,255,.025);}
+  tfoot td{padding:14px 16px; text-align:right; font-family:var(--mono); font-weight:700; color:var(--teal); border-top:2px solid var(--teal); background:rgba(51,201,176,.06);}
+  tfoot td:first-child{text-align:left; color:var(--teal); font-family:var(--sans);}
+  .empty-row td{text-align:center; color:var(--text-dim); font-family:var(--sans); padding:36px;}
 
-  footer{
-    margin-top:36px;padding-top:18px;border-top:1px solid var(--line);
-    font-size:11.5px;color:var(--paper-dim);line-height:1.6;
-  }
-  code{background:var(--panel-2);padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:11px;}
+  .foot-actions{display:flex; justify-content:flex-end; gap:10px; padding:14px 16px; border-top:1px solid var(--line);}
 
-  @media(max-width:720px){
-    .steps{grid-template-columns:1fr;}
-    .summary-strip{grid-template-columns:repeat(2,1fr);}
-  }
+  footer.page{margin-top:36px; text-align:center; color:var(--text-dim); font-size:12px; font-family:var(--mono);}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <header>
-    <div class="brand">
-      <div class="mark">
-        <svg viewBox="0 0 44 44" fill="none">
-          <circle cx="22" cy="22" r="21" stroke="#22344a" stroke-width="1.5"/>
-          <path d="M24 6 L12 24 H20 L18 38 L32 18 H23 Z" fill="#e2a53e"/>
-        </svg>
-      </div>
-      <div>
-        <h1>Categorywise CD Builder</h1>
-        <div class="sub">All Collection + ARMS Billing + Billing Payment Status &rarr; Category wise CD workbook</div>
-      </div>
+  <header class="top">
+    <div>
+      <p class="eyebrow">Billing MIS · Utility</p>
+      <h1>Online Collection Report</h1>
+      <p class="sub">Upload the four source reports below. This tool pulls out <b>only the ONLINE collector</b> entries — filtered per source as noted — and rolls them up date-wise. Everything runs in your browser; no file leaves this page.</p>
     </div>
-    <div class="badge">RUNS IN BROWSER · NO UPLOAD</div>
+    <div class="meter">
+      Sources loaded
+      <b id="loadedCount">0 / 4</b>
+    </div>
   </header>
 
-  <div class="steps">
-    <div class="card active" id="card-ac">
-      <div class="step-no"><span class="dot"></span>1. All Collection Report</div>
-      <label class="drop" id="drop-ac">
-        <div class="drop-label">Drop or click to choose file</div>
-        <input type="file" id="file-ac" accept=".xls,.xlsx">
-      </label>
-      <div class="filename" id="fn-ac"></div>
-      <div class="rowcount" id="rc-ac"></div>
+  <div class="rules-card">
+    <b>What gets picked up from each file</b>
+    <ul>
+      <li><b>MIS Daily Collection</b> — rows where Collector Id = <b>ONLINE</b>, restricted to purpose <b>ENERGY BILL</b> and <b>DISCONNECTION/RECONNECTION CHARGE (RCDC)</b> only. All other purposes are ignored.</li>
+      <li><b>Prepaid Recharge Report</b> — rows marked <b>Online Recharge</b>.</li>
+      <li><b>Smart Prepaid Recharge Report</b> — rows where Collector ID = <b>ONLINE</b>. You can drop both smart-prepaid files into the same slot; they'll be combined.</li>
+    </ul>
+  </div>
+
+  <div class="grid">
+    <div class="slot" id="slot-mis">
+      <span class="tag">File 1</span>
+      <h3>MIS Daily Collection</h3>
+      <p class="hint">CSV export — Cash/Cheque/RTGS ledger with Collector Id &amp; Purpose columns.</p>
+      <div class="filter-note">Filter: ONLINE + (Energy Bill or RCDC)</div>
+      <div class="dropzone" data-for="mis">Click or drop .csv here</div>
+      <input type="file" id="mis" accept=".csv" />
+      <ul class="filelist" id="mis-list"></ul>
     </div>
 
-    <div class="card" id="card-ab">
-      <div class="step-no"><span class="dot"></span>2. ARMS Billing Report</div>
-      <label class="drop" id="drop-ab">
-        <div class="drop-label">Drop or click to choose file</div>
-        <input type="file" id="file-ab" accept=".xls,.xlsx">
-      </label>
-      <div class="filename" id="fn-ab"></div>
-      <div class="rowcount" id="rc-ab"></div>
+    <div class="slot" id="slot-prepaid">
+      <span class="tag">File 2</span>
+      <h3>Prepaid Recharge Report</h3>
+      <p class="hint">.xls export with a Remarks column marking Online Recharge.</p>
+      <div class="filter-note">Filter: Remarks = Online Recharge</div>
+      <div class="dropzone" data-for="prepaid">Click or drop .xls here</div>
+      <input type="file" id="prepaid" accept=".xls,.xlsx" />
+      <ul class="filelist" id="prepaid-list"></ul>
     </div>
 
-    <div class="card" id="card-bp">
-      <div class="step-no"><span class="dot"></span>3. Billing Payment Status</div>
-      <label class="drop" id="drop-bp">
-        <div class="drop-label">Drop or click to choose file</div>
-        <input type="file" id="file-bp" accept=".xls,.xlsx">
-      </label>
-      <div class="filename" id="fn-bp"></div>
-      <div class="rowcount" id="rc-bp"></div>
+    <div class="slot" id="slot-smart">
+      <span class="tag">Files 3 &amp; 4</span>
+      <h3>Smart Prepaid Recharge Report(s)</h3>
+      <p class="hint">.xls exports with a Collector ID column. Add both smart-prepaid files here — they're combined automatically.</p>
+      <div class="filter-note">Filter: Collector ID = ONLINE</div>
+      <div class="dropzone" data-for="smart">Click or drop .xls file(s) here</div>
+      <input type="file" id="smart" accept=".xls,.xlsx" multiple />
+      <ul class="filelist" id="smart-list"></ul>
     </div>
   </div>
 
-  <div class="actionbar">
-    <button class="primary" id="btn-generate" disabled>Generate Category wise CD</button>
-    <div class="status" id="status">Upload all three files to enable generation.</div>
+  <div class="actions">
+    <button class="primary" id="genBtn" disabled>Generate report</button>
+    <button class="ghost" id="resetBtn">Reset all</button>
+    <span id="status"></span>
   </div>
 
-  <div class="results" id="results">
-    <div class="summary-strip">
-      <div class="stat"><div class="k">Consumers matched</div><div class="v" id="s-count">–</div></div>
-      <div class="stat"><div class="k">Total Current Demand</div><div class="v" id="s-cd">–</div></div>
-      <div class="stat"><div class="k">Total Payment</div><div class="v" id="s-payment">–</div></div>
-      <div class="stat"><div class="k">Total Outstanding</div><div class="v" id="s-out">–</div></div>
-    </div>
+  <div id="results" style="display:none;">
+    <div class="summary-strip" id="summaryStrip"></div>
 
-    <div class="summary-strip" id="adjust-strip">
-      <div class="stat"><div class="k">Temp. credit adj. (SMART payment)</div><div class="v" id="s-tempadj">–</div></div>
-      <div class="stat"><div class="k">Extra payments, category matched</div><div class="v" id="s-extra-matched">–</div></div>
-      <div class="stat"><div class="k">Extra payments, defaulted to Domestic</div><div class="v" id="s-extra-unmatched">–</div></div>
-      <div class="stat"><div class="k">Consumers behind extra payments</div><div class="v" id="s-extra-count">–</div></div>
-    </div>
-
-    <div class="panel-head">
-      <h2>Category wise CD — preview</h2>
-      <button class="dl" id="btn-download">&#8681; Download workbook (.xlsx)</button>
-    </div>
-    <div class="tablewrap">
-      <table id="preview-table"></table>
-    </div>
-
-    <div class="panel-head" style="margin-top:24px;">
-      <h2>Feeder wise CD — preview</h2>
-    </div>
-    <div class="tablewrap">
-      <table id="preview-table-feeder"></table>
-    </div>
-
-    <div class="panel-head" style="margin-top:24px;">
-      <h2>Notes on this run</h2>
-    </div>
-    <div class="tablewrap" style="padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;">
-      <ul id="notes-list" style="margin:0;padding-left:18px;font-size:12.5px;color:var(--paper-dim);line-height:1.8;"></ul>
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>MIS Online<br>(Energy + RCDC)</th>
+            <th>Prepaid Recharge<br>Online</th>
+            <th>Smart Prepaid<br>Online</th>
+            <th>Total Online<br>Collection</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+        <tfoot id="tfoot"></tfoot>
+      </table>
+      <div class="foot-actions">
+        <button class="ghost" id="downloadBtn">Download CSV</button>
+      </div>
     </div>
   </div>
 
-  <footer>
-    Files are parsed entirely in your browser using SheetJS — nothing is uploaded anywhere.
-    Consumer numbers are matched as text (leading zeros preserved) across all three reports.
-    The downloaded workbook contains four sheets: <code>Category wise CD</code> and <code>Feeder wise CD</code>
-    (each a category/feeder × SMART/NON_SMART summary), <code>Main List</code> (Sl.No / Consumer No / status / cd /
-    payment / outstanding / Feeder, then the ARMS billing columns — plus, appended at the end, every consumer who
-    paid an energy bill but has no ARMS Billing row, shown with "NA" wherever their category/status/feeder/outstanding
-    couldn't be found), and <code>Extra Payments (No ARMS Bill)</code> (the same appended consumers, as a standalone
-    filterable list). Feeder comes from Billing Payment Status's <code>Feeder Name</code> column; any matched
-    consumer with no feeder on record falls into <code>DUMMY FEEDER</code>.
-  </footer>
+  <footer class="page">Runs entirely client-side · nothing is uploaded to a server</footer>
 </div>
 
 <script>
 (function(){
-  const state = { ac:null, ab:null, bp:null };
+  const state = { mis: null, prepaid: null, smart: [] };
 
-  function norm(v){
-    if(v===null || v===undefined) return '';
-    return String(v).trim();
+  const fmt = n => n.toLocaleString('en-IN', {maximumFractionDigits: 0});
+  const rupee = n => '₹' + fmt(n);
+
+  function setStatus(msg, isErr){
+    const el = document.getElementById('status');
+    el.textContent = msg || '';
+    el.className = isErr ? 'err' : '';
   }
-  function num(v){
-    if(v===null || v===undefined || v==='') return 0;
-    const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g,''));
-    return isNaN(n) ? 0 : n;
+
+  function updateLoadedCount(){
+    let n = 0;
+    if(state.mis) n++;
+    if(state.prepaid) n++;
+    if(state.smart.length) n++; // counts as one slot but represents files 3 & 4
+    document.getElementById('loadedCount').textContent = (state.mis?1:0)+(state.prepaid?1:0)+state.smart.length + ' / 4';
+    document.getElementById('genBtn').disabled = !(state.mis && state.prepaid && state.smart.length);
   }
 
-  function setupDrop(dropId, fileId, key, cardId, fnId, rcId, requiredCols){
-    const drop = document.getElementById(dropId);
-    const input = document.getElementById(fileId);
-    const card = document.getElementById(cardId);
-
-    ['dragover','dragenter'].forEach(evt=>{
-      drop.addEventListener(evt, e=>{e.preventDefault(); drop.classList.add('filled');});
-    });
-    drop.addEventListener('dragleave', ()=>{ if(!state[key]) drop.classList.remove('filled'); });
-    drop.addEventListener('drop', e=>{
-      e.preventDefault();
-      if(e.dataTransfer.files.length){ input.files = e.dataTransfer.files; handleFile(); }
-    });
-    input.addEventListener('change', handleFile);
-
-    function handleFile(){
-      const f = input.files[0];
-      if(!f) return;
-      const reader = new FileReader();
-      reader.onload = function(e){
-        try{
-          const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
-          const ws = wb.Sheets[wb.SheetNames[0]];
-          const rows = XLSX.utils.sheet_to_json(ws, {defval:null, raw:true});
-          state[key] = rows;
-          document.getElementById(fnId).textContent = f.name;
-          document.getElementById(rcId).textContent = rows.length.toLocaleString() + ' rows';
-          drop.classList.add('filled');
-          card.classList.add('done');
-          card.classList.remove('active');
-          advanceActive();
-          checkReady();
-        }catch(err){
-          setStatus('Could not read ' + f.name + ': ' + err.message, true);
-        }
-      };
-      reader.readAsArrayBuffer(f);
+  // ---------- date normalisation ----------
+  function toISODate(v){
+    if(v instanceof Date && !isNaN(v)) {
+      return v.toISOString().slice(0,10);
     }
-  }
-
-  function advanceActive(){
-    const order = ['card-ac','card-ab','card-bp'];
-    order.forEach(id=>document.getElementById(id).classList.remove('active'));
-    for(const id of order){
-      const c = document.getElementById(id);
-      if(!c.classList.contains('done')){ c.classList.add('active'); break; }
+    if(typeof v === 'number'){
+      // excel serial date
+      const d = XLSX.SSF.parse_date_code(v);
+      if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
     }
-  }
-
-  function checkReady(){
-    const btn = document.getElementById('btn-generate');
-    if(state.ac && state.ab && state.bp){
-      btn.disabled = false;
-      setStatus('All three files loaded. Click Generate.', false, true);
-    } else {
-      setStatus('Upload all three files to enable generation.');
-    }
-  }
-
-  function setStatus(msg, isErr, isOk){
-    const s = document.getElementById('status');
-    s.textContent = msg;
-    s.classList.toggle('err', !!isErr);
-    s.classList.toggle('ok', !!isOk);
-  }
-
-  setupDrop('drop-ac','file-ac','ac','card-ac','fn-ac','rc-ac');
-  setupDrop('drop-ab','file-ab','ab','card-ab','fn-ab','rc-ab');
-  setupDrop('drop-bp','file-bp','bp','card-bp','fn-bp','rc-bp');
-
-  const MAIN_LIST_HEADERS = [
-    'Sl. No','Consumer No','status','cd','payment','outstanding','Feeder',
-    'Old Consumer No','Consumer Name','Consumer Add1','Mobile No','Email','Bill No','Bill Date','Due Date',
-    'DTR No','Billing Status','Metering Status','Category Code Name','Meter No 1','Meter No. Solar',
-    'Connected Load','Contracted Demand','MF','PF','MD','Avg. Consumption','DTR Penalty','Previous Reading',
-    'Previous Reading Date','Current Reading','Current Reading Date','UNIB','Unit Slab 1','Unit Slab 2','Unit Slab 3',
-    'SLAB 1','SLAB 2','SLAB 3','Electicity Duty','Elch Total','Meter Rent','Fixcharge Amount','FPA Amount',
-    'Rest Energy Charge','Overdrawl Penalty','Solar Rebate','Bank Charg','Current Demand','Arrear Principle',
-    'Arrear Surcharge','Current Interest','Misc. Arrear','CRADJ','Govt. Subsidy','Net Bill','No. LOf Days',
-    'Bill Type','Updated By','Update Date'
-  ];
-  // Arms billing source columns to copy verbatim, in the order they appear after "Feeder" in the output.
-  // (Sl.No, Consumer No, status, cd, payment, outstanding, Feeder are computed — everything from
-  // "Old Consumer No" onward is copied straight from the ARMS Billing row.)
-  const ARMS_PASSTHROUGH = MAIN_LIST_HEADERS.slice(7);
-
-  const TEMP_ADJ_LABEL = 'Credit adjustment (Temporary)';
-  const FALLBACK_DOMESTIC_CATEGORY = 'LT II DOMESTIC A'; // used when an unmatched energy-bill payer isn't in Billing Payment Status either
-  const DUMMY_FEEDER = 'DUMMY FEEDER'; // used when a consumer's feeder can't be found in Billing Payment Status
-
-  // ARMS Billing's "Category Code Name" column is a truncated (30-char) field, so its own values
-  // never spell out the full category name. Billing Payment Status instead uses short codes.
-  // Every alias below maps BOTH forms — the BP short code and any other way we've seen the same
-  // category written — onto ONE canonical string, so that a consumer categorised "TEMP (DOM)" in
-  // Billing Payment Status lands in the exact same summary row as the (truncated) "LT IX TEMPORARY
-  // SUPPLY (DOMEST" value stamped on the matching ARMS Billing row. Where the canonical string
-  // itself is a truncated ARMS value, that's intentional — it's what's actually stored on the ARMS
-  // side, and matching it verbatim is what makes the two sources merge into one group instead of
-  // silently creating two near-duplicate categories.
-  const CATEGORY_ALIASES = {
-    // ---- LT II Domestic A ----
-    'DOM': 'LT II DOMESTIC A',
-    'DOM A': 'LT II DOMESTIC A',
-    'DOMA': 'LT II DOMESTIC A',
-    'DOMESTIC': 'LT II DOMESTIC A',
-
-    // ---- LT III Domestic B (ARMS stores this with a double space, kept verbatim) ----
-    'DOM B': 'LT III  DOMESTIC B',
-    'DOMB': 'LT III  DOMESTIC B',
-
-    // ---- LT I Jeevan Dhara (Domestic) ----
-    'JD (DOM)': 'LT I JEEVAN DHARA (DOMESTIC)',
-    'JD(DOM)': 'LT I JEEVAN DHARA (DOMESTIC)',
-    'JEEVAN DHARA': 'LT I JEEVAN DHARA (DOMESTIC)',
-
-    // ---- LT IV Commercial ----
-    'COM': 'LT IV COMMERCIAL',
-    'COMMERCIAL': 'LT IV COMMERCIAL',
-
-    // ---- LT V(B) General Purpose (Educational) — ARMS value truncated at 30 chars ----
-    'GEN PUR (EDU)': 'LT V(B) GENERAL PURPOSE (EDUCA',
-    'GEN PUR(EDU)': 'LT V(B) GENERAL PURPOSE (EDUCA',
-    'GENERAL PURPOSE (EDU)': 'LT V(B) GENERAL PURPOSE (EDUCA',
-
-    // ---- LT V(A) General Purpose (Other) — ARMS value truncated at 30 chars ----
-    'GEN PUR (OTH)': 'LT V(A) GENERAL PURPOSE (OTHER',
-    'GEN PUR(OTH)': 'LT V(A) GENERAL PURPOSE (OTHER',
-    'GENERAL PURPOSE (OTH)': 'LT V(A) GENERAL PURPOSE (OTHER',
-
-    // ---- LT VII Agriculture ----
-    'AGRI': 'LT VII AGRICULTURE',
-    'AGRICULTURE': 'LT VII AGRICULTURE',
-
-    // ---- LT VIII Small Industries (Rural) — ARMS value truncated at 30 chars ----
-    'SM IND(R)': 'LT VIII SMALL INDUSTRIES (RURA',
-    'SM IND (R)': 'LT VIII SMALL INDUSTRIES (RURA',
-
-    // ---- HT III Public Water Works ----
-    'PUB WTR': 'HT III PUBLIC WATER WORKS',
-    'PUBLIC WATER WORKS': 'HT III PUBLIC WATER WORKS',
-
-    // ---- LT IX Temporary Supply (Domestic) — ARMS value truncated at 30 chars ----
-    'TEMP (DOM)': 'LT IX TEMPORARY SUPPLY (DOMEST',
-    'TEMP(DOM)': 'LT IX TEMPORARY SUPPLY (DOMEST',
-    'TEMPDOM': 'LT IX TEMPORARY SUPPLY (DOMEST',
-    'TEMPORARY(DOM)': 'LT IX TEMPORARY SUPPLY (DOMEST',
-    'TEMPORARY (DOM)': 'LT IX TEMPORARY SUPPLY (DOMEST',
-
-    // ---- LT IX Temporary Supply (Non-Domestic) — ARMS value truncated at 30 chars ----
-    'TEMP (N-DOM)': 'LT IX TEMPORARY SUPPLY (NON DO',
-    'TEMP(N-DOM)': 'LT IX TEMPORARY SUPPLY (NON DO',
-    'TEMP (NON-DOM)': 'LT IX TEMPORARY SUPPLY (NON DO',
-    'TEMPORARY (NON DOM)': 'LT IX TEMPORARY SUPPLY (NON DO',
-
-    // ---- LT IX Temporary Supply (Agriculture) — this one is NOT truncated on the ARMS side ----
-    'TEMP (AGRI)': 'LT IX TEMPORARY SUPPLY (AGRICULTURE)',
-    'TEMP(AGRI)': 'LT IX TEMPORARY SUPPLY (AGRICULTURE)',
-    'TEMPORARY (AGRI)': 'LT IX TEMPORARY SUPPLY (AGRICULTURE)'
-
-    // Not merged — no matching ARMS Billing value has been seen yet for these Billing Payment
-    // Status codes, so guessing the truncated ARMS spelling would risk creating a WRONG merge
-    // instead of no merge. They currently pass through as their own category row:
-    //   'SM IND(U)'    (Small Industries — Urban?)
-    //   'VEH CHARG'    (EV / Vehicle Charging?)
-    //   'HT V(B) IND'  (HT Industrial?)
-    // If any of these ever appear in an ARMS Billing file, tell me the exact ARMS spelling
-    // (copy-paste it) and I'll add the alias.
-  };
-  function normalizeCategory(cat){
-    const c = norm(cat);
-    if(!c) return c;
-    const key = c.toUpperCase().replace(/\s+/g,' ').trim();
-    return CATEGORY_ALIASES[key] || c;
-  }
-
-  // Billing Payment Status prefixes most (not all) feeder names with "032-" and suffixes many with
-  // "11 KV" / "11KV" — strip both so the feeder reads the same everywhere
-  // (e.g. "032-ABHAYAPURI TOWN 11 KV" -> "ABHAYAPURI TOWN"). "33KV ..." names are left untouched —
-  // only the "11 KV"/"11KV" suffix is stripped, not other voltage labels.
-  const GHOST_CONSUMER_FEEDER = 'GHOST CONSUMER FEEDER';
-  function normalizeFeeder(f){
-    const v = norm(f);
-    if(!v) return v;
-    return v.replace(/^032-\s*/i, '').replace(/\s*11\s*KV\s*$/i, '').trim();
-  }
-  // Extra-payment consumers (paid an energy bill, no ARMS Billing row) whose Billing Payment Status
-  // feeder is the placeholder "Ghost Consumer Feeder" are routed into Dummy Feeder instead — that
-  // placeholder isn't a real feeder any more than "no feeder on record" is.
-  function feederForExtraPayment(feeder){
-    return feeder === GHOST_CONSUMER_FEEDER ? DUMMY_FEEDER : feeder;
-  }
-
-  let lastResult = null;
-
-  function generate(){
-    setStatus('Crunching numbers…');
-    document.getElementById('btn-generate').disabled = true;
-    setTimeout(()=>{
-      try{
-        lastResult = build();
-        renderPreview(lastResult);
-        document.getElementById('results').classList.add('show');
-        setStatus('Done. ' + lastResult.mainRows.length + ' consumers matched across all three files.', false, true);
-      }catch(err){
-        setStatus('Error while generating: ' + err.message, true);
-        console.error(err);
+    if(typeof v === 'string'){
+      const s = v.trim();
+      let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+      m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      if(m){
+        // ambiguous dd/mm vs mm/dd - assume dd/mm/yyyy (India)
+        return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
       }
-      document.getElementById('btn-generate').disabled = false;
-    }, 30);
+      const parsed = new Date(s);
+      if(!isNaN(parsed)) return parsed.toISOString().slice(0,10);
+    }
+    return null;
   }
 
-  function build(){
-    // 1) payment map from All Collection: sum "Amt. No. 1" where Bill Type === 'ENERGY BILL', per Consumer No
-    const paymentMap = new Map();
-    for(const row of state.ac){
-      const billType = norm(row['Bill Type']).toUpperCase();
-      if(billType !== 'ENERGY BILL') continue;
-      const cno = norm(row['Consumer No']);
-      if(!cno) continue;
-      const amt = num(row['Amt. No. 1']);
-      paymentMap.set(cno, (paymentMap.get(cno) || 0) + amt);
-    }
-
-    // 2) billing payment status map: Consumer No -> {status, outstanding, category}
-    const bpMap = new Map();
-    for(const row of state.bp){
-      const cno = norm(row['Consumer No']);
-      if(!cno) continue;
-      bpMap.set(cno, {
-        status: norm(row['Meter Type']) || 'UNKNOWN',
-        outstanding: num(row['Outstanding']),
-        category: normalizeCategory(row['Category']) || '(unspecified)',
-        feeder: normalizeFeeder(row['Feeder Name']) || DUMMY_FEEDER
-      });
-    }
-
-    // 3) walk ARMS billing, keep only consumers present in bpMap
-    const mainRows = [];
-    const abConsumers = new Set();
-    let sl = 1;
-    for(const row of state.ab){
-      const cno = norm(row['Consumer No']);
-      if(!cno) continue;
-      abConsumers.add(cno);
-      const bp = bpMap.get(cno);
-      if(!bp) continue;
-
-      const cd = num(row['Current Demand']) + num(row['Current Interest']);
-      const payment = paymentMap.get(cno) || 0;
-
-      const out = {
-        'Sl. No': sl++,
-        'Consumer No': cno,
-        'status': bp.status,
-        'cd': round2(cd),
-        'payment': round2(payment),
-        'outstanding': round2(bp.outstanding),
-        'Feeder': bp.feeder,
-        'Old Consumer No': row['Old Consumer No'] ?? '',
-        'DTR No': row['DTR No'] ?? ''
-      };
-      for(const h of ARMS_PASSTHROUGH){
-        if(h === 'Old Consumer No' || h === 'DTR No') continue;
-        out[h] = h === 'Category Code Name' ? normalizeCategory(row[h]) : (row[h] ?? '');
-      }
-      mainRows.push(out);
-    }
-
-    // 4) category x status AND feeder x status summaries, from matched consumers.
-    //    Same shape, two independent dimensions — built together since they share the same source rows.
-    const catGroups = new Map();    // key: category|status -> {label,status,count,cd,payment,outstanding}
-    const feederGroups = new Map(); // key: feeder|status   -> {label,status,count,cd,payment,outstanding}
-    function ensureGroupIn(map, label, status){
-      const key = label + '|' + status;
-      if(!map.has(key)) map.set(key, {label, status, count:0, cd:0, payment:0, outstanding:0});
-      return map.get(key);
-    }
-    function ensureGroup(cat, status){ return ensureGroupIn(catGroups, cat, status); }
-    function ensureFeederGroup(feeder, status){ return ensureGroupIn(feederGroups, feeder, status); }
-    for(const r of mainRows){
-      const cat = normalizeCategory(r['Category Code Name']) || '(blank)';
-      const feeder = r['Feeder'] || DUMMY_FEEDER;
-      const status = r['status'] === 'SMART' ? 'SMART' : 'NON_SMART';
-      const g = ensureGroup(cat, status);
-      g.count += 1;
-      g.cd += r['cd'];
-      g.payment += r['payment'];
-      g.outstanding += r['outstanding'];
-      const fg = ensureFeederGroup(feeder, status);
-      fg.count += 1;
-      fg.cd += r['cd'];
-      fg.payment += r['payment'];
-      fg.outstanding += r['outstanding'];
-    }
-
-    // 5) energy-bill payers from All Collection who never appear in ARMS Billing at all.
-    //    These add ONLY to the payment figure (no cd/outstanding, since there's no ARMS bill row for them).
-    //    Category + SMART/NON_SMART is looked up from Billing Payment Status; if the consumer isn't
-    //    there either, the payment defaults into the Domestic / SMART bucket for the summary sheets.
-    //    Every one of these consumers is also appended to Main List at the very end (see below), showing
-    //    the real Billing Payment Status values where known, or "NA" where nothing could be found.
-    let extraMatchedTotal = 0, extraMatchedCount = 0;
-    let extraUnmatchedTotal = 0, extraUnmatchedCount = 0;
-    const extraDetail = [];
-    const extraMainListRows = [];
-    for(const [cno, amt] of paymentMap.entries()){
-      if(abConsumers.has(cno)) continue; // already reflected via the ARMS billing walk above
-      const b = bpMap.get(cno);
-      if(b){
-        const status = b.status === 'SMART' ? 'SMART' : 'NON_SMART';
-        const feeder = feederForExtraPayment(b.feeder);
-        const g = ensureGroup(b.category, status);
-        g.payment += amt;
-        const fg = ensureFeederGroup(feeder, status);
-        fg.payment += amt;
-        extraMatchedTotal += amt; extraMatchedCount += 1;
-        extraDetail.push({consumer:cno, category:b.category, feeder, status, payment:round2(amt), source:'Billing Payment Status'});
-        extraMainListRows.push({
-          'Sl. No': sl++,
-          'Consumer No': cno,
-          'status': b.status,
-          'payment': round2(amt),
-          'outstanding': round2(b.outstanding),
-          'Feeder': feeder,
-          'Category Code Name': b.category
-        });
+  // ---------- CSV parsing (handles quoted fields) ----------
+  function parseCSV(text){
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    for(let i=0;i<text.length;i++){
+      const c = text[i];
+      if(inQuotes){
+        if(c === '"'){
+          if(text[i+1] === '"'){ field += '"'; i++; }
+          else inQuotes = false;
+        } else field += c;
       } else {
-        const g = ensureGroup(FALLBACK_DOMESTIC_CATEGORY, 'SMART');
-        g.payment += amt;
-        const fg = ensureFeederGroup(DUMMY_FEEDER, 'SMART');
-        fg.payment += amt;
-        extraUnmatchedTotal += amt; extraUnmatchedCount += 1;
-        extraDetail.push({consumer:cno, category:FALLBACK_DOMESTIC_CATEGORY, feeder:DUMMY_FEEDER, status:'SMART', payment:round2(amt), source:'Not found anywhere — defaulted'});
-        extraMainListRows.push({
-          'Sl. No': sl++,
-          'Consumer No': cno,
-          'status': 'NA',
-          'payment': round2(amt),
-          'outstanding': 'NA',
-          'Feeder': 'NA',
-          'Category Code Name': 'NA'
-        });
+        if(c === '"') inQuotes = true;
+        else if(c === ','){ row.push(field); field=''; }
+        else if(c === '\r'){ /* skip */ }
+        else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+        else field += c;
       }
     }
-
-    // 6) ARMS Billing "temporary supply" credit adjustment: for every ARMS billing row whose category
-    //    mentions "temporary", its CRADJ is added straight into that SAME category's SMART payment —
-    //    no separate summary row. tempAdj (grand total) is kept only for the on-screen stat/notes.
-    let tempAdj = 0;
-    for(const row of state.ab){
-      const catRaw = norm(row['Category Code Name']);
-      if(!/temporary/i.test(catRaw)) continue;
-      const cat = normalizeCategory(catRaw);
-      const amt = num(row['CRADJ']);
-      tempAdj += amt;
-      const g = ensureGroup(cat || TEMP_ADJ_LABEL, 'SMART');
-      g.payment += amt;
-      const cno = norm(row['Consumer No']);
-      const b = bpMap.get(cno);
-      const fg = ensureFeederGroup(b ? b.feeder : DUMMY_FEEDER, 'SMART');
-      fg.payment += amt;
-    }
-    tempAdj = round2(tempAdj);
-
-    // 7) assemble summary rows (sorted alphabetically) + grand total — same shape for category and feeder.
-    function buildSummary(groupsMap){
-      const labels = [...new Set([...groupsMap.values()].map(g => g.label))].sort();
-      const summaryRows = labels.map(label=>{
-        const ns = groupsMap.get(label+'|NON_SMART') || {count:0,cd:0,payment:0,outstanding:0};
-        const sm = groupsMap.get(label+'|SMART') || {count:0,cd:0,payment:0,outstanding:0};
-        const totCount = ns.count + sm.count;
-        const totCd = ns.cd + sm.cd;
-        const totPayment = ns.payment + sm.payment;
-        const totOutstanding = ns.outstanding + sm.outstanding;
-        return {
-          label,
-          special: false,
-          ns: {count:ns.count, cd:round2(ns.cd), payment:round2(ns.payment), balance:round2(ns.cd-ns.payment), outstanding:round2(ns.outstanding)},
-          sm: {count:sm.count, cd:round2(sm.cd), payment:round2(sm.payment), balance:round2(sm.cd-sm.payment), outstanding:round2(sm.outstanding)},
-          tot: {count:totCount, cd:round2(totCd), payment:round2(totPayment), balance:round2(totCd-totPayment), outstanding:round2(totOutstanding)}
-        };
-      });
-      const grand = summaryRows.reduce((g,r)=>{
-        g.ns.count+=r.ns.count; g.ns.cd+=r.ns.cd; g.ns.payment+=r.ns.payment; g.ns.outstanding+=r.ns.outstanding;
-        g.sm.count+=r.sm.count; g.sm.cd+=r.sm.cd; g.sm.payment+=r.sm.payment; g.sm.outstanding+=r.sm.outstanding;
-        g.tot.count+=r.tot.count; g.tot.cd+=r.tot.cd; g.tot.payment+=r.tot.payment; g.tot.outstanding+=r.tot.outstanding;
-        return g;
-      }, {ns:{count:0,cd:0,payment:0,outstanding:0}, sm:{count:0,cd:0,payment:0,outstanding:0}, tot:{count:0,cd:0,payment:0,outstanding:0}});
-      grand.ns.balance = round2(grand.ns.cd - grand.ns.payment);
-      grand.sm.balance = round2(grand.sm.cd - grand.sm.payment);
-      grand.tot.balance = round2(grand.tot.cd - grand.tot.payment);
-      return {summaryRows, grand};
-    }
-
-    const catSummary = buildSummary(catGroups);
-    const feederSummary = buildSummary(feederGroups);
-
-    // 8) append the "paid but no ARMS bill" consumers to the end of Main List (after everything above
-    //    has used the original ARMS-matched mainRows for its counts, so this doesn't skew the summaries).
-    mainRows.push(...extraMainListRows);
-
-    return {
-      mainRows,
-      summaryRows: catSummary.summaryRows, grand: catSummary.grand,
-      feederSummaryRows: feederSummary.summaryRows, feederGrand: feederSummary.grand,
-      extraDetail,
-      adjustments: { tempAdj, extraMatchedTotal:round2(extraMatchedTotal), extraMatchedCount, extraUnmatchedTotal:round2(extraUnmatchedTotal), extraUnmatchedCount }
-    };
+    if(field.length || row.length){ row.push(field); rows.push(row); }
+    return rows.filter(r => r.length && r.some(c => c !== ''));
   }
 
-  function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
-  function fmt(n){ return Number(n).toLocaleString('en-IN', {maximumFractionDigits:2}); }
+  // ---------- File 1: MIS Daily Collection CSV ----------
+  function processMIS(text){
+    const rows = parseCSV(text);
+    // header row may have fewer columns than data rows (Purpose column often unlabeled)
+    const dataRows = rows.slice(1);
+    const byDate = {};
+    const KEEP_PURPOSES = ['ENERGY BILL', 'DISCONNECTION RECONNECTION CHARGE'];
+    dataRows.forEach(r => {
+      if(r.length < 10) return;
+      const date = toISODate(r[1]);
+      const collector = (r[8] || '').trim().toUpperCase();
+      const purpose = (r[9] || '').trim().toUpperCase();
+      if(!date || collector !== 'ONLINE') return;
+      if(!KEEP_PURPOSES.includes(purpose)) return;
+      const amt = [2,3,4,5,6,7].reduce((s,idx) => s + (parseFloat(r[idx]) || 0), 0);
+      byDate[date] = (byDate[date] || 0) + amt;
+    });
+    return byDate;
+  }
 
-  function renderPreview(result){
-    document.getElementById('s-count').textContent = result.mainRows.length.toLocaleString();
-    document.getElementById('s-cd').textContent = fmt(result.grand.tot.cd);
-    document.getElementById('s-payment').textContent = fmt(result.grand.tot.payment);
-    document.getElementById('s-out').textContent = fmt(result.grand.tot.outstanding);
+  // ---------- File 2: Prepaid Recharge Report ----------
+  function processPrepaid(workbook){
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    const byDate = {};
+    json.forEach(r => {
+      const remarks = String(r['Remarks'] || '').toLowerCase();
+      if(!remarks.includes('online')) return;
+      const date = toISODate(r['Payment Date']);
+      if(!date) return;
+      const amt = parseFloat(r['Amount Paid']) || 0;
+      byDate[date] = (byDate[date] || 0) + amt;
+    });
+    return byDate;
+  }
 
-    const adj = result.adjustments;
-    document.getElementById('s-tempadj').textContent = fmt(adj.tempAdj);
-    document.getElementById('s-extra-matched').textContent = fmt(adj.extraMatchedTotal);
-    document.getElementById('s-extra-unmatched').textContent = fmt(adj.extraUnmatchedTotal);
-    document.getElementById('s-extra-count').textContent = (adj.extraMatchedCount + adj.extraUnmatchedCount).toLocaleString();
+  // ---------- Files 3 & 4: Smart Prepaid Recharge Report ----------
+  function processSmart(workbook){
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    const byDate = {};
+    json.forEach(r => {
+      const collector = String(r['Collector ID'] || '').trim().toUpperCase();
+      if(collector !== 'ONLINE') return;
+      const date = toISODate(r['Payment Date']);
+      if(!date) return;
+      const paid = r['Paid Amount'] !== '' ? parseFloat(r['Paid Amount']) : parseFloat(r['Amount']);
+      byDate[date] = (byDate[date] || 0) + (paid || 0);
+    });
+    return byDate;
+  }
 
-    const notes = document.getElementById('notes-list');
-    notes.innerHTML = '';
-    const noteItems = [
-      'ARMS Billing rows with a "temporary" category contribute ' + fmt(adj.tempAdj) + ' of CRADJ credit adjustment, added directly into that same temporary category\'s (and its consumer\'s feeder\'s) SMART payment (no separate adjustment row).',
-      adj.extraMatchedCount + ' consumer(s) paid an energy bill but have no ARMS Billing row — ' + fmt(adj.extraMatchedTotal) + ' added to payment, category/feeder/status taken from Billing Payment Status.',
-      adj.extraUnmatchedCount + ' consumer(s) paid an energy bill and were not found in either ARMS Billing or Billing Payment Status — ' + fmt(adj.extraUnmatchedTotal) + ' defaulted into "' + FALLBACK_DOMESTIC_CATEGORY + '" category / "' + DUMMY_FEEDER + '" feeder / SMART payment for the summary sheets.',
-      'All ' + (adj.extraMatchedCount + adj.extraUnmatchedCount) + ' of these "no ARMS bill" consumers are also appended at the end of Main List, showing their real status/category/feeder/outstanding where known, or "NA" where nothing could be found — cd (Current Demand) is left blank since there is no ARMS bill to read it from.',
-      'Feeder wise CD groups every matched consumer by Billing Payment Status\'s Feeder Name (with any leading "032-" and trailing "11 KV" stripped); consumers with no feeder on record fall into "' + DUMMY_FEEDER + '". For "no ARMS bill" extra payments specifically, a "' + GHOST_CONSUMER_FEEDER + '" feeder is also redirected into "' + DUMMY_FEEDER + '".'
-    ];
-    for(const t of noteItems){
+  // ---------- wiring up upload slots ----------
+  function readAsText(file){ return new Promise((res,rej)=>{ const fr = new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsText(file); }); }
+  function readAsWorkbook(file){ return new Promise((res,rej)=>{ const fr = new FileReader(); fr.onload=()=>{ try{ res(XLSX.read(fr.result, {type:'binary', cellDates:true})); } catch(e){ rej(e); } }; fr.onerror=rej; fr.readAsBinaryString(file); }); }
+
+  function renderFileList(id, names){
+    const ul = document.getElementById(id);
+    ul.innerHTML = '';
+    names.forEach((n, idx) => {
       const li = document.createElement('li');
-      li.textContent = t;
-      notes.appendChild(li);
-    }
-
-    renderSummaryTable('preview-table', 'Category', result.summaryRows, result.grand);
-    renderSummaryTable('preview-table-feeder', 'Feeder', result.feederSummaryRows, result.feederGrand);
+      li.innerHTML = `<span class="nm">${n}</span>`;
+      ul.appendChild(li);
+    });
   }
 
-  function renderSummaryTable(tableId, labelHeader, summaryRows, grand){
-    const table = document.getElementById(tableId);
-    let html = '<thead><tr><th>'+escapeHtml(labelHeader)+'</th>' +
-      '<th>NS Count</th><th>NS CD</th><th>NS Payment</th><th>NS Balance</th><th>NS Outstanding</th>' +
-      '<th>S Count</th><th>S CD</th><th>S Payment</th><th>S Balance</th><th>S Outstanding</th>' +
-      '<th>Tot Count</th><th>Tot CD</th><th>Tot Payment</th><th>Tot Balance</th><th>Tot Outstanding</th></tr></thead><tbody>';
-    for(const r of summaryRows){
-      const cls = r.special ? ' class="grand"' : '';
-      html += '<tr'+cls+'><td>'+escapeHtml(r.label)+'</td>' +
-        '<td>'+(r.ns.count||'')+'</td><td>'+(r.ns.cd?fmt(r.ns.cd):'')+'</td><td>'+(r.ns.payment?fmt(r.ns.payment):'')+'</td><td>'+(r.ns.balance?fmt(r.ns.balance):'')+'</td><td>'+(r.ns.outstanding?fmt(r.ns.outstanding):'')+'</td>' +
-        '<td>'+(r.sm.count||'')+'</td><td>'+(r.sm.cd?fmt(r.sm.cd):'')+'</td><td>'+(r.sm.payment?fmt(r.sm.payment):'')+'</td><td>'+(r.sm.balance?fmt(r.sm.balance):'')+'</td><td>'+(r.sm.outstanding?fmt(r.sm.outstanding):'')+'</td>' +
-        '<td>'+r.tot.count+'</td><td>'+fmt(r.tot.cd)+'</td><td>'+fmt(r.tot.payment)+'</td><td>'+fmt(r.tot.balance)+'</td><td>'+fmt(r.tot.outstanding)+'</td></tr>';
-    }
-    html += '<tr class="grand"><td>Grand Total</td>' +
-      '<td>'+grand.ns.count+'</td><td>'+fmt(grand.ns.cd)+'</td><td>'+fmt(grand.ns.payment)+'</td><td>'+fmt(grand.ns.balance)+'</td><td>'+fmt(grand.ns.outstanding)+'</td>' +
-      '<td>'+grand.sm.count+'</td><td>'+fmt(grand.sm.cd)+'</td><td>'+fmt(grand.sm.payment)+'</td><td>'+fmt(grand.sm.balance)+'</td><td>'+fmt(grand.sm.outstanding)+'</td>' +
-      '<td>'+grand.tot.count+'</td><td>'+fmt(grand.tot.cd)+'</td><td>'+fmt(grand.tot.payment)+'</td><td>'+fmt(grand.tot.balance)+'</td><td>'+fmt(grand.tot.outstanding)+'</td></tr>';
-    html += '</tbody>';
-    table.innerHTML = html;
-  }
-
-  function escapeHtml(s){
-    return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  }
-
-  // ---- styling constants for the ExcelJS output ----
-  const CLR_HEADER_FILL   = 'FF132338';
-  const CLR_HEADER_FONT   = 'FFEEF1F0';
-  const CLR_GRID          = 'FF9FB0C0';
-  const CLR_GRAND_FILL    = 'FFE2A53E';
-  const CLR_GRAND_FONT    = 'FF1A1206';
-  const CLR_SPECIAL_FILL  = 'FFDDEDE9';
-  const CLR_BAND_FILL     = 'FFF3F5F4';
-
-  function thinBorder(){
-    return {
-      top:{style:'thin', color:{argb:CLR_GRID}},
-      left:{style:'thin', color:{argb:CLR_GRID}},
-      bottom:{style:'thin', color:{argb:CLR_GRID}},
-      right:{style:'thin', color:{argb:CLR_GRID}}
-    };
-  }
-  function styleHeaderCell(cell){
-    cell.font = {bold:true, color:{argb:CLR_HEADER_FONT}, size:10.5};
-    cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR_HEADER_FILL}};
-    cell.alignment = {vertical:'middle', horizontal:'center', wrapText:true};
-    cell.border = thinBorder();
-  }
-  function styleDataCell(cell, opts){
-    opts = opts || {};
-    cell.border = thinBorder();
-    cell.alignment = {vertical:'middle', horizontal: opts.align || 'right'};
-    if(opts.fill) cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:opts.fill}};
-    if(opts.bold) cell.font = Object.assign({bold:true}, opts.fontColor ? {color:{argb:opts.fontColor}} : {});
-    if(opts.numFmt) cell.numFmt = opts.numFmt;
-  }
-
-  async function downloadWorkbook(){
-    if(!lastResult) return;
-    const btn = document.getElementById('btn-download');
-    btn.disabled = true;
-    const originalLabel = btn.textContent;
-    btn.textContent = 'Building styled workbook…';
+  async function handleMIS(file){
+    setStatus('Reading MIS Daily Collection…');
     try{
-      const wb = new ExcelJS.Workbook();
-      wb.creator = 'Categorywise CD Builder';
-      wb.created = new Date();
-
-      const NUM_FMT = '#,##0.00';
-
-      // Builds one "<Something> wise CD" sheet (Category wise CD / Feeder wise CD) — same layout,
-      // just a different first-column label and a different set of summary rows.
-      function buildCdSheet(sheetName, labelHeader, summaryRows){
-        const ws1 = wb.addWorksheet(sheetName, {views:[{state:'frozen', xSplit:1, ySplit:2}]});
-        const cols1 = [38,12,14,13,14,13,12,14,13,14,13,12,14,13,14,13];
-        ws1.columns = cols1.map(w => ({width:w}));
-
-        ws1.mergeCells('A1:A2');
-        ws1.mergeCells('B1:F1');
-        ws1.mergeCells('G1:K1');
-        ws1.mergeCells('L1:L2');
-        ws1.mergeCells('M1:M2');
-        ws1.mergeCells('N1:N2');
-        ws1.mergeCells('O1:O2');
-        ws1.mergeCells('P1:P2');
-
-        const h1 = ws1.getRow(1);
-        h1.getCell(1).value  = labelHeader;
-        h1.getCell(2).value  = 'NON_SMART';
-        h1.getCell(7).value  = 'SMART';
-        h1.getCell(12).value = 'No of Consumes';
-        h1.getCell(13).value = 'Current Demand';
-        h1.getCell(14).value = 'payment';
-        h1.getCell(15).value = 'Balance';
-        h1.getCell(16).value = 'Outstanding';
-        const h2 = ws1.getRow(2);
-        const subHeaders = ['No of Consumes','Current Demand','payment','Balance','Outstanding'];
-        subHeaders.forEach((label, i) => { h2.getCell(2+i).value = label; });   // B..F under NON_SMART
-        subHeaders.forEach((label, i) => { h2.getCell(7+i).value = label; });   // G..K under SMART
-        for(const r of [h1,h2]){
-          r.eachCell({includeEmpty:true}, cell => styleHeaderCell(cell));
-        }
-        // Row 2 carries two-word wrapped sub-headers ("No of Consumes", "Current Demand", ...) in
-        // cells that are NOT merged with row 1, so row 2 alone needs enough height for two text
-        // lines — otherwise the second line gets clipped/cramped against the row below.
-        h1.height = 22;
-        h2.height = 34;
-
-        let rIdx = 3;
-        summaryRows.forEach((r, i) => {
-          const row = ws1.getRow(rIdx);
-          const nsCount = r.ns.count || null, nsCd = r.ns.cd || null, nsPayment = r.ns.payment || null, nsOut = r.ns.outstanding || null;
-          const smCount = r.sm.count || null, smCd = r.sm.cd || null, smPayment = r.sm.payment || null, smOut = r.sm.outstanding || null;
-          row.getCell(1).value = r.label;
-          row.getCell(2).value = nsCount;
-          row.getCell(3).value = nsCd;
-          row.getCell(4).value = nsPayment;
-          row.getCell(5).value = { formula: `C${rIdx}-D${rIdx}` };            // NS Balance = NS cd - NS payment
-          row.getCell(6).value = nsOut;
-          row.getCell(7).value = smCount;
-          row.getCell(8).value = smCd;
-          row.getCell(9).value = smPayment;
-          row.getCell(10).value = { formula: `H${rIdx}-I${rIdx}` };           // SMART Balance = SMART cd - SMART payment
-          row.getCell(11).value = smOut;
-          row.getCell(12).value = { formula: `B${rIdx}+G${rIdx}` };           // Total count
-          row.getCell(13).value = { formula: `C${rIdx}+H${rIdx}` };           // Total cd
-          row.getCell(14).value = { formula: `D${rIdx}+I${rIdx}` };           // Total payment
-          row.getCell(15).value = { formula: `M${rIdx}-N${rIdx}` };           // Total balance
-          row.getCell(16).value = { formula: `F${rIdx}+K${rIdx}` };           // Total outstanding
-
-          const fill = r.special ? CLR_SPECIAL_FILL : (i % 2 === 1 ? CLR_BAND_FILL : null);
-          row.eachCell({includeEmpty:true}, (cell, colNum) => {
-            styleDataCell(cell, {
-              align: colNum === 1 ? 'left' : 'right',
-              fill: fill,
-              numFmt: colNum === 1 ? undefined : (colNum===2||colNum===7||colNum===12 ? '#,##0' : NUM_FMT),
-              bold: colNum >= 12 // total columns bold
-            });
-          });
-          if(r.special) row.font = {italic:true};
-          rIdx++;
-        });
-
-        const firstDataRow = 3, lastDataRow = rIdx - 1;
-        const grandRow = ws1.getRow(rIdx);
-        grandRow.getCell(1).value = 'Grand Total';
-        grandRow.getCell('B').value = { formula: `SUM(B${firstDataRow}:B${lastDataRow})` };
-        grandRow.getCell('C').value = { formula: `SUM(C${firstDataRow}:C${lastDataRow})` };
-        grandRow.getCell('D').value = { formula: `SUM(D${firstDataRow}:D${lastDataRow})` };
-        grandRow.getCell('E').value = { formula: `C${rIdx}-D${rIdx}` };
-        grandRow.getCell('F').value = { formula: `SUM(F${firstDataRow}:F${lastDataRow})` };
-        grandRow.getCell('G').value = { formula: `SUM(G${firstDataRow}:G${lastDataRow})` };
-        grandRow.getCell('H').value = { formula: `SUM(H${firstDataRow}:H${lastDataRow})` };
-        grandRow.getCell('I').value = { formula: `SUM(I${firstDataRow}:I${lastDataRow})` };
-        grandRow.getCell('J').value = { formula: `H${rIdx}-I${rIdx}` };
-        grandRow.getCell('K').value = { formula: `SUM(K${firstDataRow}:K${lastDataRow})` };
-        grandRow.getCell('L').value = { formula: `B${rIdx}+G${rIdx}` };
-        grandRow.getCell('M').value = { formula: `C${rIdx}+H${rIdx}` };
-        grandRow.getCell('N').value = { formula: `D${rIdx}+I${rIdx}` };
-        grandRow.getCell('O').value = { formula: `M${rIdx}-N${rIdx}` };
-        grandRow.getCell('P').value = { formula: `F${rIdx}+K${rIdx}` };
-        grandRow.eachCell({includeEmpty:true}, (cell, colNum) => {
-          styleDataCell(cell, {
-            align: colNum === 1 ? 'left' : 'right',
-            fill: CLR_GRAND_FILL,
-            fontColor: CLR_GRAND_FONT,
-            bold: true,
-            numFmt: colNum === 1 ? undefined : (colNum===2||colNum===7||colNum===12 ? '#,##0' : NUM_FMT)
-          });
-        });
-        grandRow.height = 20;
-        return ws1;
-      }
-
-      // ================= Sheet 1: Category wise CD =================
-      buildCdSheet('Category wise CD', 'Category', lastResult.summaryRows);
-
-      // ================= Sheet 2: Feeder wise CD =================
-      buildCdSheet('Feeder wise CD', 'Feeder', lastResult.feederSummaryRows);
-
-      // ================= Sheet 3: Main List =================
-      // (Sheet order in the workbook: 1 Category wise CD, 2 Feeder wise CD, 3 Main List, 4 Extra Payments)
-      const ws2 = wb.addWorksheet('Main List', {views:[{state:'frozen', xSplit:2, ySplit:1}]});
-      ws2.columns = MAIN_LIST_HEADERS.map(h => ({
-        header: h,
-        width: Math.min(Math.max(h.length+2, 10), 26)
-      }));
-      const hdr2 = ws2.getRow(1);
-      hdr2.eachCell(cell => styleHeaderCell(cell));
-      hdr2.height = 20;
-
-      lastResult.mainRows.forEach((r, i) => {
-        const row = ws2.addRow(MAIN_LIST_HEADERS.map(h => r[h] === undefined ? '' : r[h]));
-        const fill = i % 2 === 1 ? CLR_BAND_FILL : null;
-        row.eachCell({includeEmpty:true}, cell => styleDataCell(cell, {align:'right', fill}));
-      });
-      ws2.getColumn(1).alignment = {horizontal:'right'};
-      // left-align the obviously text columns
-      ['Consumer No','Feeder','Old Consumer No','Consumer Name','Consumer Add1','Category Code Name','Billing Status','Metering Status','Bill Type','Updated By'].forEach(h=>{
-        const idx = MAIN_LIST_HEADERS.indexOf(h)+1;
-        if(idx>0) ws2.getColumn(idx).alignment = {horizontal:'left'};
-      });
-
-      // ================= Sheet 5: Extra payments audit trail =================
-      if(lastResult.extraDetail.length){
-        const ws3 = wb.addWorksheet('Extra Payments (No ARMS Bill)', {views:[{state:'frozen', xSplit:1, ySplit:1}]});
-        const headers3 = ['Consumer No','Category used','Feeder used','SMART/NON_SMART','Payment amount','Source of category/feeder/status'];
-        ws3.columns = [
-          {header:headers3[0], width:18},
-          {header:headers3[1], width:32},
-          {header:headers3[2], width:26},
-          {header:headers3[3], width:16},
-          {header:headers3[4], width:16},
-          {header:headers3[5], width:34}
-        ];
-        const hdr3 = ws3.getRow(1);
-        hdr3.eachCell(cell => styleHeaderCell(cell));
-        hdr3.height = 20;
-        lastResult.extraDetail.forEach((d,i) => {
-          const row = ws3.addRow([d.consumer, d.category, d.feeder, d.status, d.payment, d.source]);
-          const fill = i % 2 === 1 ? CLR_BAND_FILL : null;
-          row.eachCell({includeEmpty:true}, (cell, colNum) => {
-            styleDataCell(cell, {align: colNum===5?'right':'left', fill, numFmt: colNum===5?NUM_FMT:undefined});
-          });
-        });
-      }
-
-      const buf = await wb.xlsx.writeBuffer();
-      const blob = new Blob([buf], {type:'application/octet-stream'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const stamp = new Date().toISOString().slice(0,10);
-      a.href = url;
-      a.download = 'Categorywise_CD_' + stamp + '.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch(err){
-      setStatus('Error while building the styled workbook: ' + err.message, true);
-      console.error(err);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = originalLabel;
-    }
+      const text = await readAsText(file);
+      state.mis = { name:file.name, byDate: processMIS(text) };
+      document.getElementById('slot-mis').classList.add('ready');
+      renderFileList('mis-list', [file.name]);
+      setStatus('');
+    } catch(e){ setStatus('Could not read MIS file: ' + e.message, true); }
+    updateLoadedCount();
   }
 
-  document.getElementById('btn-generate').addEventListener('click', generate);
-  document.getElementById('btn-download').addEventListener('click', downloadWorkbook);
+  async function handlePrepaid(file){
+    setStatus('Reading Prepaid Recharge Report…');
+    try{
+      const wb = await readAsWorkbook(file);
+      state.prepaid = { name:file.name, byDate: processPrepaid(wb) };
+      document.getElementById('slot-prepaid').classList.add('ready');
+      renderFileList('prepaid-list', [file.name]);
+      setStatus('');
+    } catch(e){ setStatus('Could not read Prepaid Recharge file: ' + e.message, true); }
+    updateLoadedCount();
+  }
+
+  async function handleSmart(files){
+    setStatus('Reading Smart Prepaid Recharge Report(s)…');
+    try{
+      const list = [];
+      for(const file of files){
+        const wb = await readAsWorkbook(file);
+        list.push({ name:file.name, byDate: processSmart(wb) });
+      }
+      state.smart = list;
+      document.getElementById('slot-smart').classList.add('ready');
+      renderFileList('smart-list', list.map(x=>x.name));
+      setStatus('');
+    } catch(e){ setStatus('Could not read Smart Prepaid file(s): ' + e.message, true); }
+    updateLoadedCount();
+  }
+
+  document.getElementById('mis').addEventListener('change', e => { if(e.target.files[0]) handleMIS(e.target.files[0]); });
+  document.getElementById('prepaid').addEventListener('change', e => { if(e.target.files[0]) handlePrepaid(e.target.files[0]); });
+  document.getElementById('smart').addEventListener('change', e => { if(e.target.files.length) handleSmart([...e.target.files]); });
+
+  document.querySelectorAll('.dropzone').forEach(dz => {
+    const key = dz.dataset.for;
+    const input = document.getElementById(key);
+    dz.addEventListener('click', () => input.click());
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.closest('.slot').classList.add('drag'); });
+    dz.addEventListener('dragleave', () => dz.closest('.slot').classList.remove('drag'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault();
+      dz.closest('.slot').classList.remove('drag');
+      const files = [...e.dataTransfer.files];
+      if(!files.length) return;
+      if(key === 'mis') handleMIS(files[0]);
+      else if(key === 'prepaid') handlePrepaid(files[0]);
+      else if(key === 'smart') handleSmart(files);
+    });
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    state.mis = null; state.prepaid = null; state.smart = [];
+    ['mis','prepaid','smart'].forEach(id => { document.getElementById(id).value = ''; document.getElementById(id+'-list').innerHTML=''; document.getElementById('slot-'+id).classList.remove('ready'); });
+    document.getElementById('results').style.display = 'none';
+    setStatus('');
+    updateLoadedCount();
+  });
+
+  // ---------- report generation ----------
+  let lastRows = [];
+
+  document.getElementById('genBtn').addEventListener('click', () => {
+    const allDates = new Set();
+    [state.mis.byDate, state.prepaid.byDate, ...state.smart.map(s=>s.byDate)].forEach(obj => {
+      Object.keys(obj).forEach(d => allDates.add(d));
+    });
+    const smartCombined = {};
+    state.smart.forEach(s => Object.entries(s.byDate).forEach(([d,v]) => smartCombined[d] = (smartCombined[d]||0)+v));
+
+    const dates = [...allDates].sort();
+    const rows = dates.map(d => {
+      const mis = state.mis.byDate[d] || 0;
+      const prepaid = state.prepaid.byDate[d] || 0;
+      const smart = smartCombined[d] || 0;
+      return { date:d, mis, prepaid, smart, total: mis+prepaid+smart };
+    });
+    lastRows = rows;
+    renderResults(rows);
+  });
+
+  function renderResults(rows){
+    const tbody = document.getElementById('tbody');
+    const tfoot = document.getElementById('tfoot');
+    tbody.innerHTML = '';
+    if(!rows.length){
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="5">No online collection rows found across the uploaded files.</td></tr>';
+    } else {
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${formatDisplayDate(r.date)}</td><td>${rupee(r.mis)}</td><td>${rupee(r.prepaid)}</td><td>${rupee(r.smart)}</td><td style="color:var(--teal); font-weight:700;">${rupee(r.total)}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    const sum = k => rows.reduce((s,r)=>s+r[k],0);
+    tfoot.innerHTML = `<tr><td>Total</td><td>${rupee(sum('mis'))}</td><td>${rupee(sum('prepaid'))}</td><td>${rupee(sum('smart'))}</td><td>${rupee(sum('total'))}</td></tr>`;
+
+    const strip = document.getElementById('summaryStrip');
+    strip.innerHTML = `
+      <div class="stat"><div class="l">MIS Online (Energy + RCDC)</div><div class="v">${rupee(sum('mis'))}</div></div>
+      <div class="stat"><div class="l">Prepaid Recharge Online</div><div class="v">${rupee(sum('prepaid'))}</div></div>
+      <div class="stat"><div class="l">Smart Prepaid Online</div><div class="v">${rupee(sum('smart'))}</div></div>
+      <div class="stat"><div class="l">Grand Total</div><div class="v">${rupee(sum('total'))}</div></div>
+    `;
+    document.getElementById('results').style.display = 'block';
+    setStatus(`Report generated — ${rows.length} date(s).`);
+  }
+
+  function formatDisplayDate(iso){
+    const [y,m,d] = iso.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${d} ${months[parseInt(m,10)-1]} ${y}`;
+  }
+
+  document.getElementById('downloadBtn').addEventListener('click', () => {
+    if(!lastRows.length) return;
+    let csv = 'Date,MIS Online (Energy+RCDC),Prepaid Recharge Online,Smart Prepaid Online,Total Online Collection\n';
+    lastRows.forEach(r => { csv += `${r.date},${r.mis},${r.prepaid},${r.smart},${r.total}\n`; });
+    const sum = k => lastRows.reduce((s,r)=>s+r[k],0);
+    csv += `Total,${sum('mis')},${sum('prepaid')},${sum('smart')},${sum('total')}\n`;
+    const blob = new Blob([csv], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'online-collection-report.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  updateLoadedCount();
 })();
 </script>
 </body>
