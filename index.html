@@ -3,650 +3,774 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Online Collection Report — Date-wise</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<title>Collection Report Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
-  :root{
-    --bg:#0b1f26;
-    --panel:#0f2932;
-    --panel-2:#123540;
-    --line: #1e4753;
-    --amber:#f2a541;
-    --teal:#33c9b0;
-    --text:#eaf3f3;
-    --text-dim:#9fb8bd;
-    --danger:#e2604f;
-    --mono: 'IBM Plex Mono', 'Courier New', monospace;
-    --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  :root {
+    --bg: #0f1419; --panel: #161b22; --border: #2a323c;
+    --text: #e6edf3; --muted: #8b949e; --accent: #4f8cff; --accent2: #3fb950;
+    --danger: #f85149;
+    --header-bg: #1c2733; --row-alt: #131a22; --total-bg: #1a2f22;
   }
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Segoe UI',Roboto,-apple-system,sans-serif; background:var(--bg); color:var(--text); padding:32px 16px 64px; }
+  .wrap { max-width: 1250px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; font-weight: 600; }
+  h2 { font-size: 1.05rem; margin: 28px 0 10px; font-weight: 600; color: var(--text); }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
 
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
-  body{
-    background:
-      radial-gradient(900px 500px at 88% -8%, rgba(51,201,176,.14) 0%, transparent 60%),
-      radial-gradient(700px 500px at 5% 0%, rgba(242,165,65,.10) 0%, transparent 55%),
-      var(--bg);
-    background-attachment: fixed;
-    color:var(--text);
-    font-family:var(--sans);
-    min-height:100vh;
-    padding:0 20px 80px;
-  }
-  .topbar{
-    height:4px; margin:0 -20px 32px;
-    background:linear-gradient(90deg, var(--teal), var(--amber), var(--teal));
-    background-size:200% 100%;
-    animation: shimmer 6s ease-in-out infinite;
-  }
-  @keyframes shimmer{ 0%{background-position:0% 0;} 50%{background-position:100% 0;} 100%{background-position:0% 0;} }
-  @keyframes fadeUp{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
-  .grid .slot{ animation: fadeUp .5s ease both; }
-  .grid .slot:nth-child(2){ animation-delay:.06s; }
-  .grid .slot:nth-child(3){ animation-delay:.12s; }
-  .grid .slot:nth-child(4){ animation-delay:.18s; }
-  #results{ animation: fadeUp .4s ease both; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
 
-  .bolt{
-    display:inline-flex; align-items:center; justify-content:center;
-    width:38px; height:38px; border-radius:10px; margin-right:12px;
-    background:linear-gradient(135deg, rgba(242,165,65,.18), rgba(51,201,176,.18));
-    border:1px solid var(--line); flex-shrink:0;
+  .id-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom: 18px; }
+  .id-row label { font-size: 0.82rem; color: var(--muted); }
+  .id-row input[type=text] {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 8px 10px; font-size: 0.85rem; width: 260px;
   }
-  .title-row{display:flex; align-items:center;}
 
-  .wrap{max-width:1180px;margin:0 auto;}
+  .upload-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .upload-slot {
+    border: 1.5px dashed var(--border); border-radius: 10px; padding: 16px;
+    background: var(--bg); transition: border-color 0.15s;
+  }
+  .upload-slot.filled { border-color: var(--accent2); border-style: solid; }
+  .upload-slot .title { font-weight: 600; font-size: 0.88rem; margin-bottom: 4px; }
+  .upload-slot .desc { color: var(--muted); font-size: 0.75rem; margin-bottom: 10px; line-height:1.4; }
+  .upload-slot input[type=file] { font-size: 0.78rem; color: var(--muted); width: 100%; }
+  .upload-slot .status { margin-top: 8px; font-size: 0.78rem; color: var(--accent2); min-height: 1em; }
 
-  header.top{
-    display:flex; align-items:flex-end; justify-content:space-between;
-    gap:20px; margin-bottom:28px; flex-wrap:wrap;
-    border-bottom:1px solid var(--line); padding-bottom:20px;
+  .btn {
+    background: var(--accent2); color: #04240f; border: none; border-radius: 8px;
+    padding: 11px 20px; font-weight: 600; font-size: 0.9rem; cursor: pointer;
   }
-  .eyebrow{
-    font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase;
-    color:var(--amber); margin:0 0 8px;
-  }
-  h1{margin:0; font-size:28px; font-weight:700; letter-spacing:-0.01em;}
-  .sub{color:var(--text-dim); font-size:14px; margin-top:6px; max-width:580px;}
-  .meter{ font-family:var(--mono); text-align:right; font-size:12px; color:var(--text-dim); }
-  .meter b{display:block; font-size:26px; color:var(--teal); font-weight:700;}
+  .btn:hover { opacity: 0.9; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.secondary { background: var(--accent); color: #04122e; }
+  .btn-row { display:flex; gap:12px; align-items:center; margin: 18px 0; flex-wrap:wrap; }
 
-  .rules-card{
-    background:var(--panel); border:1px solid var(--line); border-radius:10px;
-    padding:16px 20px; margin-bottom:24px; font-size:13px; color:var(--text-dim);
-  }
-  .rules-card b{color:var(--text);}
-  .rules-card ul{margin:8px 0 0; padding-left:18px; line-height:1.7;}
+  #status-msg { color: var(--muted); font-size: 0.85rem; }
+  #status-msg.error { color: var(--danger); }
 
-  .grid{
-    display:grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr));
-    gap:16px; margin-bottom:28px;
-  }
-  .slot{
-    background:var(--panel); border:1px solid var(--line); border-radius:12px;
-    padding:18px; position:relative; transition:border-color .15s ease, transform .15s ease, box-shadow .15s ease;
-  }
-  .slot:hover{ transform:translateY(-2px); box-shadow:0 12px 28px -14px rgba(0,0,0,.5); }
-  .slot.ready{border-color:var(--teal); box-shadow:0 0 0 1px rgba(51,201,176,.25) inset;}
-  .slot.ready h3::after{ content:' ✓'; color:var(--teal); }
-  .slot.drag{border-color:var(--amber); transform:translateY(-2px);}
-  .slot .tag{
-    font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--amber); margin-bottom:6px; display:block;
-  }
-  .slot h3{margin:0 0 4px; font-size:15px;}
-  .slot p.hint{margin:0 0 14px; font-size:12.5px; color:var(--text-dim); line-height:1.5;}
-  .slot .filter-note{
-    font-family:var(--mono); font-size:11px; color:var(--teal); background:rgba(51,201,176,.08);
-    border:1px dashed rgba(51,201,176,.35); border-radius:6px; padding:6px 8px; margin-bottom:12px;
-  }
-  .dropzone{
-    border:1.5px dashed var(--line); border-radius:8px; padding:14px;
-    text-align:center; cursor:pointer; font-size:12.5px; color:var(--text-dim);
-    transition:background .15s ease;
-  }
-  .dropzone:hover{background:rgba(255,255,255,.03);}
-  .slot input[type=file]{display:none;}
-  .filelist{margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--text-dim); list-style:none; padding:0;}
-  .filelist li{display:flex; justify-content:space-between; gap:8px; padding:3px 0; border-top:1px solid var(--line);}
-  .filelist li span.nm{color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .meta-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card .label { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .card .value { font-size: 1.2rem; font-weight: 600; color: var(--accent2); }
 
-  .actions{display:flex; align-items:center; gap:14px; margin-bottom:28px; flex-wrap:wrap;}
-  button.primary{
-    background:var(--amber); color:#20140a; border:none; font-weight:700;
-    font-family:var(--sans); font-size:14.5px; padding:13px 26px; border-radius:8px;
-    cursor:pointer; letter-spacing:.01em; transition:transform .12s ease, box-shadow .12s ease;
-    box-shadow:0 6px 18px -6px rgba(242,165,65,.5);
-  }
-  button.primary:hover{transform:translateY(-1px);}
-  button.primary:disabled{opacity:.4; cursor:not-allowed; box-shadow:none; transform:none;}
-  button.ghost{
-    background:transparent; border:1px solid var(--line); color:var(--text-dim);
-    font-family:var(--mono); font-size:12.5px; padding:11px 18px; border-radius:8px; cursor:pointer;
-  }
-  button.ghost:hover{color:var(--text); border-color:var(--teal);}
-  #status{font-family:var(--mono); font-size:12.5px; color:var(--text-dim);}
-  #status.err{color:var(--danger);}
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 1150px; font-size: 0.82rem; }
+  thead th { background: var(--header-bg); color: var(--text); font-weight: 600; padding: 8px 10px; text-align: right; border: 1px solid var(--border); white-space: nowrap; }
+  thead th:first-child { text-align: left; }
+  thead tr.section-row th { text-align: center; background: #21293380; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  tbody td { padding: 6px 10px; border: 1px solid var(--border); }
+  tbody tr:nth-child(even) { background: var(--row-alt); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.total-col { font-weight: 600; color: var(--accent); }
+  tr.grand-total { background: var(--total-bg) !important; font-weight: 700; }
 
-  .summary-strip{
-    display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:22px;
-  }
-  .stat{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:16px;}
-  .stat .l{font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim);}
-  .stat .v{font-family:var(--mono); font-size:19px; font-weight:700; color:var(--teal); margin-top:6px;}
-  .stat.grand{border-color:var(--amber);}
-  .stat.grand .v{color:var(--amber); font-size:21px;}
+  footer { margin-top: 24px; color: var(--muted); font-size: 0.78rem; line-height: 1.6; }
+  footer code { background: var(--panel); padding: 1px 5px; border-radius: 4px; }
 
-  .table-card{background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; overflow-x:auto;}
-  table{width:100%; border-collapse:collapse; font-size:13px; min-width:900px;}
-  thead th{
-    text-align:right; padding:12px 14px; font-family:var(--mono); font-size:10.5px;
-    text-transform:uppercase; letter-spacing:.04em; color:var(--amber);
-    border-bottom:1px solid var(--line); background:rgba(255,255,255,.02); line-height:1.4;
-  }
-  thead th:first-child{text-align:left;}
-  tbody td{padding:9px 14px; text-align:right; font-family:var(--mono); border-bottom:1px solid rgba(255,255,255,.05); color:var(--text);}
-  tbody td:first-child{text-align:left; color:var(--text-dim); font-family:var(--sans); white-space:nowrap;}
-  tbody td.zero{color:var(--text-dim); opacity:.45;}
-  tbody tr:hover td{background:rgba(255,255,255,.025);}
-  tfoot td{padding:14px 14px; text-align:right; font-family:var(--mono); font-weight:700; color:var(--teal); border-top:2px solid var(--teal); background:rgba(51,201,176,.06);}
-  tfoot td:first-child{text-align:left; color:var(--teal); font-family:var(--sans);}
-  .empty-row td{text-align:center; color:var(--text-dim); font-family:var(--sans); padding:36px;}
-
-  .total-cell{ position:relative; display:flex; align-items:center; justify-content:flex-end; height:22px; }
-  .total-bar{
-    position:absolute; right:0; top:50%; transform:translateY(-50%); height:100%;
-    background:linear-gradient(90deg, rgba(242,165,65,.05), rgba(242,165,65,.22));
-    border-radius:5px; z-index:0;
-  }
-  .total-val{ position:relative; z-index:1; font-weight:700; color:var(--amber); padding-right:2px; }
-
-  .foot-actions{display:flex; justify-content:flex-end; gap:10px; padding:14px 16px; border-top:1px solid var(--line);}
-
-  footer.page{margin-top:36px; text-align:center; color:var(--text-dim); font-size:12px; font-family:var(--mono);}
+  #resultsSection { display: none; }
 </style>
 </head>
 <body>
-<div class="topbar"></div>
 <div class="wrap">
+  <h1>Collection Report Builder</h1>
+  <div class="subtitle">Upload this month's source files → get the coll.xlsx collection report automatically.</div>
 
-  <header class="top">
-    <div>
-      <p class="eyebrow">Billing MIS · Utility</p>
-      <div class="title-row">
-        <span class="bolt">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M13 2L4 14H11L10 22L20 9H13L13 2Z" fill="#f2a541" stroke="#f2a541" stroke-width="0.5" stroke-linejoin="round"/>
-          </svg>
-        </span>
-        <h1>Online Collection Report</h1>
+  <div class="panel">
+    <h2 style="margin-top:0;">1. Collector IDs</h2>
+    <div class="id-row">
+      <label>Collector IDs to include (comma separated):</label>
+      <input type="text" id="collectorIds" value="40003813, 40003144">
+    </div>
+
+    <h2>2. Upload files for this month</h2>
+    <div class="upload-grid">
+      <div class="upload-slot" id="slot-daily">
+        <div class="title">Daily Collection</div>
+        <div class="desc">MIS_Daily_Collection... — Energy Bill, Assessment Bill, RC/DC. Any format accepted: .csv, .xlsx, .xls, .xlsm, .xlsb.</div>
+        <input type="file" id="file-daily" accept=".csv,.xlsx,.xls,.xlsm,.xlsb,.ods,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <div class="status" id="status-daily"></div>
+      </div>
+      <div class="upload-slot" id="slot-headwise">
+        <div class="title">HeadWise Collection Report</div>
+        <div class="desc">headwiseCollectionReport... — Meter Cost, RC/DC, Misc (temporary energy charge and meter-cost entries of ₹2,400/₹6,000 auto-excluded). Any Excel/CSV format accepted.</div>
+        <input type="file" id="file-headwise" accept=".xls,.xlsx,.xlsm,.xlsb,.csv,.ods,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <div class="status" id="status-headwise"></div>
+      </div>
+      <div class="upload-slot" id="slot-smartprepaid">
+        <div class="title">Smart Prepaid Recharge Report(s)</div>
+        <div class="desc">smartPrepaidRechargeReport... — you can select multiple files at once (hold Ctrl/Cmd). Any Excel/CSV format accepted.</div>
+        <input type="file" id="file-smartprepaid" accept=".xls,.xlsx,.xlsm,.xlsb,.csv,.ods,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple>
+        <div class="status" id="status-smartprepaid"></div>
       </div>
     </div>
-  </header>
 
-  <div class="grid">
-    <div class="slot" id="slot-mis">
-      <span class="tag">File 1</span>
-      <h3>MIS Daily Collection</h3>
-      <p class="hint">CSV export with Collector Id &amp; Purpose columns.</p>
-      <div class="filter-note">ONLINE → RC/DC + Energy Bill</div>
-      <div class="dropzone" data-for="mis">Click or drop .csv here</div>
-      <input type="file" id="mis" accept=".csv" />
-      <ul class="filelist" id="mis-list"></ul>
-    </div>
-
-    <div class="slot" id="slot-prepaid">
-      <span class="tag">File 2</span>
-      <h3>Prepaid Recharge Report</h3>
-      <p class="hint">.xls export with a Remarks column.</p>
-      <div class="filter-note">Remarks = Online Recharge</div>
-      <div class="dropzone" data-for="prepaid">Click or drop .xls here</div>
-      <input type="file" id="prepaid" accept=".xls,.xlsx" />
-      <ul class="filelist" id="prepaid-list"></ul>
-    </div>
-
-    <div class="slot" id="slot-smart">
-      <span class="tag">File 3</span>
-      <h3>Smart Prepaid Recharge Report</h3>
-      <p class="hint">Upload one or both smart-prepaid exports here — all sheets from every file are combined. The tool tells regular collections apart from Cash OS entries automatically using the Payment Mode column (anything ending in "_os" goes to the Cash OS column).</p>
-      <div class="filter-note">Collector ID = ONLINE</div>
-      <div class="dropzone" data-for="smart">Click or drop .xls file(s) here</div>
-      <input type="file" id="smart" accept=".xls,.xlsx" multiple />
-      <ul class="filelist" id="smart-list"></ul>
+    <div class="btn-row">
+      <button class="btn" id="processBtn" onclick="processFiles()">Build Report</button>
+      <span id="status-msg"></span>
     </div>
   </div>
 
-  <div class="actions">
-    <button class="primary" id="genBtn" disabled>Generate report</button>
-    <button class="ghost" id="resetBtn">Reset all</button>
-    <button class="primary" id="downloadXlsxBtn" style="display:none;">⤓ Download Excel</button>
-    <button class="ghost" id="downloadCsvBtn" style="display:none;">⤓ Download CSV</button>
-    <span id="status"></span>
-  </div>
+  <div id="resultsSection">
+    <div class="meta-cards" id="metaCards"></div>
 
-  <div id="results" style="display:none;">
-    <div class="summary-strip" id="summaryStrip"></div>
-
-    <div class="table-card">
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Online<br>RC/DC</th>
-            <th>Online Energy<br>Bill</th>
-            <th>Online Prepaid<br>Meter</th>
-            <th>Online Smart<br>Prepaid</th>
-            <th>Online Smart Prepaid<br>(cash_os)</th>
-            <th>Grand Total</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-        <tfoot id="tfoot"></tfoot>
-      </table>
+    <div class="btn-row">
+      <button class="btn secondary" onclick="downloadExcel()">⬇ Download Collection Report</button>
     </div>
-  </div>
 
-  <footer class="page">Runs entirely client-side · nothing is uploaded to a server</footer>
+    <div class="table-scroll">
+    <table id="collTable">
+      <thead>
+        <tr class="section-row" id="sectionHeaderRow">
+          <th rowspan="3">DATE</th>
+          <th colspan="9">Collection</th>
+          <th colspan="4">Deposite</th>
+          <th rowspan="3">Temporary</th>
+          <th rowspan="3">Total Collection<br>(ID-wise)</th>
+          <th rowspan="3">Balance</th>
+        </tr>
+        <tr>
+          <th colspan="2">ENERGY BILL</th>
+          <th colspan="2">Smart Prepaid</th>
+          <th rowspan="2">Assessment</th>
+          <th rowspan="2">RC/DC</th>
+          <th rowspan="2">Meter Cost</th>
+          <th rowspan="2">Misc</th>
+          <th rowspan="2">Total</th>
+          <th rowspan="2">Rev Ac</th>
+          <th rowspan="2">RC/DC AC</th>
+          <th rowspan="2">DW AC</th>
+          <th rowspan="2">Total</th>
+        </tr>
+        <tr>
+          <th>cash</th><th>Cheque</th><th>cash</th><th>Cheque</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    </div>
+    <div style="color:var(--muted); font-size:0.78rem; margin-top:6px;">
+      "Temporary" = Temporary Energy Charge + Meter Cost entries of exactly ₹2,400 / ₹6,000 from the HeadWise report — kept aside, not part of any Collection/Deposite total.<br>
+      "Total Collection (ID-wise)" = everything for Collector IDs <span id="idListLabel"></span> combined — every bill type from Daily Collection (Energy Bill, Assessment, RC/DC, New Service Connection, Testing, Change Process, Meter Seal, all of it) plus every payment mode from Smart Prepaid. Nothing excluded; not split by category.<br>
+      "Balance" = Total Collection (ID-wise) − (Collection Total + Temporary).
+    </div>
+
+
+
+    <footer>
+      RC/DC = Daily Collection (Disconnection/Reconnection Charge) + HeadWise (Disconnection Reconnection Charge + New Service Connection Disconnection Charge).<br>
+      Deposite → Rev A/c = Energy Bill + Assessment + Smart Prepaid &nbsp;|&nbsp; RC/DC A/c = All RC/DC &nbsp;|&nbsp; DW A/c = Meter Cost + Misc.<br>
+      Temporary Energy Charge and Meter Cost entries of exactly ₹2,400 / ₹6,000 are excluded from HeadWise data. Only the Collector IDs listed above are included; everything else is ignored.
+    </footer>
+  </div>
 </div>
 
 <script>
-(function(){
-  const state = { mis: null, prepaid: null, smart: null };
-  const HEADER = ['Date','Online RC/DC','Online Energy Bill','Online Prepaid Meter','Online Smart Prepaid','Online Smart Prepaid (cash_os)','Grand Total'];
+let computedData = null; // { rows: [...], dates: [...] }
 
-  const fmt = n => Number(n).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  const rupee = n => '₹' + fmt(n || 0);
-
-  function setStatus(msg, isErr){
-    const el = document.getElementById('status');
-    el.textContent = msg || '';
-    el.className = isErr ? 'err' : '';
+function setStatus(id, msg, isError) {
+  const el = document.getElementById('status-' + id);
+  if (el) el.textContent = msg;
+  if (id === 'msg') {
+    const m = document.getElementById('status-msg');
+    m.textContent = msg;
+    m.className = isError ? 'error' : '';
   }
+}
 
-  function updateLoadedCount(){
-    const n = (state.mis?1:0)+(state.prepaid?1:0)+(state.smart?1:0);
-    document.getElementById('genBtn').disabled = n < 3;
+// All date handling below works directly off the calendar y/m/d components
+// (never through a JS Date object's local/UTC getters while reading source
+// files) so the result can never shift by a day because of the browser's
+// timezone. A JS Date (built with Date.UTC) is only constructed at the very
+// end, purely to sort/iterate/display, and is always read back with the UTC
+// getters to match how it was built.
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+// Excel serial date number -> 'YYYY-MM-DD' key, no Date object involved.
+function excelSerialToKey(serial) {
+  const d = XLSX.SSF.parse_date_code(serial);
+  if (!d) return null;
+  return d.y + '-' + pad2(d.m) + '-' + pad2(d.d);
+}
+
+// Accepts a raw cell value (number, string, or Date) coming from either the
+// CSV or an Excel file and returns a 'YYYY-MM-DD' key using its own calendar
+// components only.
+function cellDateToKey(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number') {
+    return excelSerialToKey(v);
   }
+  if (v instanceof Date) {
+    // Only reached if a library handed us a Date object directly. Use LOCAL
+    // getters here because that's how such objects are normally constructed
+    // (new Date(y, m, d) uses local time), so this stays consistent with the
+    // calendar date the source actually intended.
+    return v.getFullYear() + '-' + pad2(v.getMonth() + 1) + '-' + pad2(v.getDate());
+  }
+  if (typeof v === 'string') {
+    const s = v.trim();
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);       // YYYY-MM-DD
+    if (m) return m[1] + '-' + pad2(m[2]) + '-' + pad2(m[3]);
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/); // DD-MM-YYYY or DD/MM/YYYY
+    if (m) return m[3] + '-' + pad2(m[1]) + '-' + pad2(m[2]);
+    const d = new Date(s);
+    if (!isNaN(d)) return cellDateToKey(d);
+  }
+  return null;
+}
 
-  // ---------- date normalisation ----------
-  // Deliberately avoids JS Date/timezone conversion for numeric Excel serials —
-  // SSF.parse_date_code works purely off the serial number, so a July 1 cell
-  // can never drift back to June 30 because of a local/UTC offset.
-  function toISODate(v){
-    if(typeof v === 'number'){
-      const d = XLSX.SSF.parse_date_code(v);
-      if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+// Build a UTC-based Date purely for sorting/iterating/exporting, from a
+// 'YYYY-MM-DD' key. Always read back with getUTC* to match.
+function keyToUTCDate(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+async function readWorkbook(file) {
+  const buf = await file.arrayBuffer();
+  // Deliberately NOT using cellDates:true — we read the raw Excel serial
+  // number ourselves via excelSerialToKey() to avoid any local-timezone
+  // conversion that a JS Date object would introduce.
+  return XLSX.read(buf, { type: 'array' });
+}
+
+async function readCSVRows(file) {
+  const text = await file.text();
+  const parsed = Papa.parse(text, { header: false, skipEmptyLines: true });
+  return parsed.data;
+}
+
+// Returns the lowercase file extension (without the dot), or '' if none.
+function getExt(file) {
+  const name = file.name || '';
+  const dot = name.lastIndexOf('.');
+  return dot === -1 ? '' : name.slice(dot + 1).toLowerCase();
+}
+
+// Generic tabular-data reader: works no matter which spreadsheet format the
+// user hands it (.csv, .xlsx, .xls, .xlsm, .xlsb, .ods, ...). Returns an
+// array-of-arrays (header row included), same shape either parser produces,
+// so every downstream loop in this file can stay format-agnostic.
+async function readTabularRows(file) {
+  const ext = getExt(file);
+  if (ext === 'csv' || file.type === 'text/csv') {
+    return await readCSVRows(file);
+  }
+  // Anything else (xlsx/xls/xlsm/xlsb/ods/or an unrecognised extension) is
+  // handed to SheetJS, which auto-detects the actual format from the file
+  // bytes rather than trusting the extension.
+  try {
+    const wb = await readWorkbook(file);
+    const sheetName = wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
+    return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+  } catch (err) {
+    // Last-resort fallback: maybe it really was delimited text with an
+    // unusual extension — try CSV parsing before giving up.
+    try {
+      return await readCSVRows(file);
+    } catch (err2) {
+      throw err;
     }
-    if(v instanceof Date && !isNaN(v)) {
-      return `${v.getUTCFullYear()}-${String(v.getUTCMonth()+1).padStart(2,'0')}-${String(v.getUTCDate()).padStart(2,'0')}`;
-    }
-    if(typeof v === 'string'){
-      const s = v.trim();
-      let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if(m) return `${m[1]}-${m[2]}-${m[3]}`;
-      m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-      if(m) return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
-      const parsed = new Date(s + 'T00:00:00Z');
-      if(!isNaN(parsed)) return parsed.toISOString().slice(0,10);
-    }
-    return null;
+  }
+}
+
+function getTargetIds() {
+  return document.getElementById('collectorIds').value
+    .split(',').map(s => s.trim()).filter(Boolean);
+}
+
+async function processFiles() {
+  setStatus('msg', '');
+  const dailyFile = document.getElementById('file-daily').files[0];
+  const headwiseFile = document.getElementById('file-headwise').files[0];
+  const spFiles = document.getElementById('file-smartprepaid').files;
+
+  if (!dailyFile || !headwiseFile || spFiles.length === 0) {
+    setStatus('msg', 'Please upload all three: Daily Collection file, HeadWise report, and at least one Smart Prepaid report.', true);
+    return;
   }
 
-  // ---------- generic multi-sheet, header-optional reader ----------
-  // Some exports only carry a header row on the first sheet; later sheets in
-  // the same workbook continue the data with no header at all. This detects
-  // that and falls back to the known column order.
-  function readSheetAsObjects(sheet, expectedHeader){
-    const aoa = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
-    if(!aoa.length) return [];
-    const firstRow = aoa[0].map(x => String(x).trim());
-    const hasHeader = expectedHeader.some(h => firstRow.includes(h));
-    const header = hasHeader ? firstRow : expectedHeader;
-    const dataRows = hasHeader ? aoa.slice(1) : aoa;
-    return dataRows
-      .filter(r => r.some(c => c !== ''))
-      .map(r => { const obj = {}; header.forEach((h,i) => obj[h] = r[i]); return obj; });
+  const targetIds = new Set(getTargetIds());
+  if (targetIds.size === 0) {
+    setStatus('msg', 'Please enter at least one Collector ID.', true);
+    return;
   }
 
-  function readAllSheets(workbook, expectedHeader){
-    let rows = [];
-    workbook.SheetNames.forEach(name => { rows = rows.concat(readSheetAsObjects(workbook.Sheets[name], expectedHeader)); });
-    return rows;
-  }
+  document.getElementById('processBtn').disabled = true;
+  setStatus('msg', 'Processing...');
 
-  // ---------- CSV parsing (handles quoted fields) ----------
-  function parseCSV(text){
-    const rows = [];
-    let row = [], field = '', inQuotes = false;
-    for(let i=0;i<text.length;i++){
-      const c = text[i];
-      if(inQuotes){
-        if(c === '"'){ if(text[i+1] === '"'){ field += '"'; i++; } else inQuotes = false; }
-        else field += c;
-      } else {
-        if(c === '"') inQuotes = true;
-        else if(c === ','){ row.push(field); field=''; }
-        else if(c === '\r'){ /* skip */ }
-        else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
-        else field += c;
+  try {
+    const energy = {};       // date -> {cash, cheque}
+    const assess = {};       // date -> amount
+    const rcdcDaily = {};    // date -> amount
+    const rawTotal = {};     // date -> amount — EVERYTHING for the target IDs (both combined), no
+                              // bill-type filtering at all: every row, every amount column from Daily
+                              // Collection (Energy, Assessment, RC/DC, New Service Connection, Testing,
+                              // Change Process, Meter Seal, everything) + every payment mode from Smart Prepaid.
+
+    // ---- 1. Daily Collection (any format: csv/xlsx/xls/xlsm/xlsb) ----
+    const dailyRows = await readTabularRows(dailyFile);
+    let dHeaderSkipped = false;
+    for (const r of dailyRows) {
+      if (!dHeaderSkipped) { dHeaderSkipped = true; continue; }
+      if (!r || r.length < 10) continue;
+      const dateStr = r[1] === null || r[1] === undefined ? '' : (typeof r[1] === 'string' ? r[1].trim() : r[1]);
+      const cash = parseFloat(r[2]) || 0;
+      const cheque = parseFloat(r[3]) || 0;
+      const rtgs = parseFloat(r[4]) || 0;
+      const govtAdj = parseFloat(r[5]) || 0;
+      const boardAdj = parseFloat(r[6]) || 0;
+      const towerAdj = parseFloat(r[7]) || 0;
+      const cid = (r[8] === null || r[8] === undefined ? '' : String(r[8])).trim();
+      const billType = (r[9] === null || r[9] === undefined ? '' : String(r[9])).trim();
+      if (!targetIds.has(cid)) continue;
+      const key = cellDateToKey(dateStr);
+      if (!key) continue;
+      // Unfiltered: every row for this collector counts here, regardless of bill type.
+      rawTotal[key] = (rawTotal[key] || 0) + cash + cheque + rtgs + govtAdj + boardAdj + towerAdj;
+      if (billType === 'ENERGY BILL') {
+        energy[key] = energy[key] || { cash: 0, cheque: 0 };
+        energy[key].cash += cash;
+        energy[key].cheque += cheque;
+      } else if (billType === 'FINAL ASSESSMENT BILL') {
+        assess[key] = (assess[key] || 0) + cash + cheque;
+      } else if (billType === 'DISCONNECTION RECONNECTION CHARGE') {
+        rcdcDaily[key] = (rcdcDaily[key] || 0) + cash + cheque;
       }
     }
-    if(field.length || row.length){ row.push(field); rows.push(row); }
-    return rows.filter(r => r.length && r.some(c => c !== ''));
-  }
+    setStatus('daily', `${dailyRows.length - 1} rows read`);
 
-  // ---------- File 1: MIS Daily Collection CSV → { rcdc: {date:amt}, energy: {date:amt} } ----------
-  function processMIS(text){
-    const rows = parseCSV(text);
-    const dataRows = rows.slice(1);
-    const rcdc = {}, energy = {};
-    dataRows.forEach(r => {
-      if(r.length < 10) return;
-      const date = toISODate(r[1]);
-      const collector = (r[8] || '').trim().toUpperCase();
-      const purpose = (r[9] || '').trim().toUpperCase();
-      if(!date || collector !== 'ONLINE') return;
-      const amt = [2,3,4,5,6,7].reduce((s,idx) => s + (parseFloat(r[idx]) || 0), 0);
-      if(purpose === 'DISCONNECTION RECONNECTION CHARGE'){ rcdc[date] = (rcdc[date]||0) + amt; }
-      else if(purpose === 'ENERGY BILL'){ energy[date] = (energy[date]||0) + amt; }
-    });
-    return { rcdc, energy };
-  }
+    // ---- 2. HeadWise Collection Report (any format) ----
+    const meterCost = {};      // date -> amount
+    const rcdcHeadwise = {};   // date -> amount
+    const miscHeadwise = {};   // date -> amount
+    const excludedHeadwise = {}; // date -> amount (Temporary Energy Charge + Meter Cost of ₹2,400/₹6,000, kept aside)
+    const RCDC_HEADS = new Set(['DISCONNECTION RECONNECTION CHARGE', 'NEW SERVICE CONNECTION DISCONNECTION CHARGE']);
 
-  // ---------- File 2: Prepaid Recharge Report ----------
-  const PREPAID_SCHEMA = ['Customer No','Payment Date','Transaction No','Meter','Voucher Code','Amount Paid','Remarks'];
-  function processPrepaid(workbook){
-    const json = readAllSheets(workbook, PREPAID_SCHEMA);
-    const byDate = {};
-    json.forEach(r => {
-      const remarks = String(r['Remarks'] || '').toLowerCase();
-      if(!remarks.includes('online')) return;
-      const date = toISODate(r['Payment Date']);
-      if(!date) return;
-      byDate[date] = (byDate[date] || 0) + (parseFloat(r['Amount Paid']) || 0);
-    });
-    return byDate;
-  }
-
-  // ---------- File 3: Smart Prepaid Recharge Report(s) ----------
-  // Accepts one or more files. Rows are split into "smart" vs "smartcash"
-  // purely from the Payment Mode column (anything ending "_os" is Cash OS) —
-  // this works whether the user drops in one file or both.
-  const SMART_SCHEMA = ['Consumer No','Receipt No','Payment Mode','Amount','Payment Date','Cheque Reference No','Cheque Reference date','Cheque Reference Bank Name','Cheque Reference Branch Name','Paid Amount','Collector ID'];
-  function processSmartWorkbook(workbook, acc){
-    const json = readAllSheets(workbook, SMART_SCHEMA);
-    json.forEach(r => {
-      const collector = String(r['Collector ID'] || '').trim().toUpperCase();
-      if(collector !== 'ONLINE') return;
-      const date = toISODate(r['Payment Date']);
-      if(!date) return;
-      const paid = r['Paid Amount'] !== '' && r['Paid Amount'] != null ? parseFloat(r['Paid Amount']) : parseFloat(r['Amount']);
-      const mode = String(r['Payment Mode'] || '').trim().toLowerCase();
-      const target = mode.endsWith('_os') ? acc.smartcash : acc.smart;
-      target[date] = (target[date] || 0) + (paid || 0);
-    });
-  }
-
-  // ---------- wiring up upload slots ----------
-  function readAsText(file){ return new Promise((res,rej)=>{ const fr = new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsText(file); }); }
-  function readAsWorkbook(file){ return new Promise((res,rej)=>{ const fr = new FileReader(); fr.onload=()=>{ try{ res(XLSX.read(fr.result, {type:'binary'})); } catch(e){ rej(e); } }; fr.onerror=rej; fr.readAsBinaryString(file); }); }
-
-  function renderFileList(id, names){
-    const ul = document.getElementById(id);
-    ul.innerHTML = '';
-    names.forEach(n => { const li = document.createElement('li'); li.innerHTML = `<span class="nm">${n}</span>`; ul.appendChild(li); });
-  }
-
-  async function handleMIS(file){
-    setStatus('Reading MIS Daily Collection…');
-    try{
-      const text = await readAsText(file);
-      state.mis = processMIS(text);
-      document.getElementById('slot-mis').classList.add('ready');
-      renderFileList('mis-list', [file.name]);
-      setStatus('');
-    } catch(e){ setStatus('Could not read MIS file: ' + e.message, true); }
-    updateLoadedCount();
-  }
-
-  async function handlePrepaid(file){
-    setStatus('Reading Prepaid Recharge Report…');
-    try{
-      const wb = await readAsWorkbook(file);
-      state.prepaid = processPrepaid(wb);
-      document.getElementById('slot-prepaid').classList.add('ready');
-      renderFileList('prepaid-list', [file.name]);
-      setStatus('');
-    } catch(e){ setStatus('Could not read Prepaid Recharge file: ' + e.message, true); }
-    updateLoadedCount();
-  }
-
-  async function handleSmart(files){
-    setStatus('Reading Smart Prepaid Recharge Report(s)…');
-    try{
-      const acc = { smart:{}, smartcash:{} };
-      for(const file of files){
-        const wb = await readAsWorkbook(file);
-        processSmartWorkbook(wb, acc);
+    let hwRowCount = 0;
+    const hwExt = getExt(headwiseFile);
+    if (hwExt === 'csv' || headwiseFile.type === 'text/csv') {
+      const rows = await readCSVRows(headwiseFile);
+      for (let i = 1; i < rows.length; i++) {
+        hwRowCount += processHeadwiseRow(rows[i], targetIds, meterCost, rcdcHeadwise, miscHeadwise, excludedHeadwise, RCDC_HEADS);
       }
-      state.smart = acc;
-      document.getElementById('slot-smart').classList.add('ready');
-      renderFileList('smart-list', files.map(f=>f.name));
-      setStatus('');
-    } catch(e){ setStatus('Could not read Smart Prepaid file(s): ' + e.message, true); }
-    updateLoadedCount();
-  }
-
-  document.getElementById('mis').addEventListener('change', e => { if(e.target.files[0]) handleMIS(e.target.files[0]); });
-  document.getElementById('prepaid').addEventListener('change', e => { if(e.target.files[0]) handlePrepaid(e.target.files[0]); });
-  document.getElementById('smart').addEventListener('change', e => { if(e.target.files.length) handleSmart([...e.target.files]); });
-
-  document.querySelectorAll('.dropzone').forEach(dz => {
-    const key = dz.dataset.for;
-    const input = document.getElementById(key);
-    dz.addEventListener('click', () => input.click());
-    dz.addEventListener('dragover', e => { e.preventDefault(); dz.closest('.slot').classList.add('drag'); });
-    dz.addEventListener('dragleave', () => dz.closest('.slot').classList.remove('drag'));
-    dz.addEventListener('drop', e => {
-      e.preventDefault();
-      dz.closest('.slot').classList.remove('drag');
-      const files = [...e.dataTransfer.files];
-      if(!files.length) return;
-      if(key === 'mis') handleMIS(files[0]);
-      else if(key === 'prepaid') handlePrepaid(files[0]);
-      else if(key === 'smart') handleSmart(files);
-    });
-  });
-
-  document.getElementById('resetBtn').addEventListener('click', () => {
-    state.mis = null; state.prepaid = null; state.smart = null;
-    ['mis','prepaid','smart'].forEach(id => {
-      document.getElementById(id).value = '';
-      document.getElementById(id+'-list').innerHTML = '';
-      document.getElementById('slot-'+id).classList.remove('ready');
-    });
-    document.getElementById('results').style.display = 'none';
-    document.getElementById('downloadXlsxBtn').style.display = 'none';
-    document.getElementById('downloadCsvBtn').style.display = 'none';
-    setStatus('');
-    updateLoadedCount();
-  });
-
-  // ---------- report generation ----------
-  let lastRows = [];
-
-  document.getElementById('genBtn').addEventListener('click', () => {
-    const allDates = new Set();
-    [state.mis.rcdc, state.mis.energy, state.prepaid, state.smart.smart, state.smart.smartcash].forEach(obj => {
-      Object.keys(obj).forEach(d => allDates.add(d));
-    });
-    const dates = [...allDates].sort();
-    const rows = dates.map(d => {
-      const rcdc = state.mis.rcdc[d] || 0;
-      const energy = state.mis.energy[d] || 0;
-      const prepaid = state.prepaid[d] || 0;
-      const smart = state.smart.smart[d] || 0;
-      const smartcash = state.smart.smartcash[d] || 0;
-      return { date:d, rcdc, energy, prepaid, smart, smartcash, total: rcdc+energy+prepaid+smart+smartcash };
-    });
-    lastRows = rows;
-    renderResults(rows);
-  });
-
-  function cell(v){ return `<td class="${v?'':'zero'}">${rupee(v)}</td>`; }
-
-  function renderResults(rows){
-    const tbody = document.getElementById('tbody');
-    const tfoot = document.getElementById('tfoot');
-    tbody.innerHTML = '';
-    if(!rows.length){
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No online collection rows found across the uploaded files.</td></tr>';
     } else {
-      const maxTotal = Math.max(...rows.map(r => r.total), 1);
-      rows.forEach(r => {
-        const tr = document.createElement('tr');
-        const pct = Math.max(4, Math.round((r.total / maxTotal) * 100));
-        tr.innerHTML = `<td>${formatDisplayDate(r.date)}</td>${cell(r.rcdc)}${cell(r.energy)}${cell(r.prepaid)}${cell(r.smart)}${cell(r.smartcash)}
-          <td><div class="total-cell"><span class="total-bar" style="width:${pct}%"></span><span class="total-val">${rupee(r.total)}</span></div></td>`;
-        tbody.appendChild(tr);
-      });
-    }
-    const sum = k => rows.reduce((s,r)=>s+r[k],0);
-    tfoot.innerHTML = `<tr><td>Grand Total</td><td>${rupee(sum('rcdc'))}</td><td>${rupee(sum('energy'))}</td><td>${rupee(sum('prepaid'))}</td><td>${rupee(sum('smart'))}</td><td>${rupee(sum('smartcash'))}</td><td>${rupee(sum('total'))}</td></tr>`;
-
-    const strip = document.getElementById('summaryStrip');
-    strip.innerHTML = `
-      <div class="stat"><div class="l">Online RC/DC</div><div class="v">${rupee(sum('rcdc'))}</div></div>
-      <div class="stat"><div class="l">Online Energy Bill</div><div class="v">${rupee(sum('energy'))}</div></div>
-      <div class="stat"><div class="l">Online Prepaid Meter</div><div class="v">${rupee(sum('prepaid'))}</div></div>
-      <div class="stat"><div class="l">Online Smart Prepaid</div><div class="v">${rupee(sum('smart'))}</div></div>
-      <div class="stat"><div class="l">Smart Prepaid (cash_os)</div><div class="v">${rupee(sum('smartcash'))}</div></div>
-      <div class="stat grand"><div class="l">Grand Total</div><div class="v">${rupee(sum('total'))}</div></div>
-    `;
-    document.getElementById('results').style.display = 'block';
-    document.getElementById('downloadXlsxBtn').style.display = 'inline-block';
-    document.getElementById('downloadCsvBtn').style.display = 'inline-block';
-    setStatus(`Report generated — ${rows.length} date(s).`);
-  }
-
-  function formatDisplayDate(iso){
-    const [y,m,d] = iso.split('-');
-    return `${d}-${m}-${y}`;
-  }
-
-  const d2 = n => Number(n||0).toFixed(2);
-
-  document.getElementById('downloadCsvBtn').addEventListener('click', () => {
-    if(!lastRows.length) return;
-    let csv = HEADER.join(',') + '\n';
-    lastRows.forEach(r => { csv += `${formatDisplayDate(r.date)},${d2(r.rcdc)},${d2(r.energy)},${d2(r.prepaid)},${d2(r.smart)},${d2(r.smartcash)},${d2(r.total)}\n`; });
-    const sum = k => lastRows.reduce((s,r)=>s+r[k],0);
-    csv += `Grand Total,${d2(sum('rcdc'))},${d2(sum('energy'))},${d2(sum('prepaid'))},${d2(sum('smart'))},${d2(sum('smartcash'))},${d2(sum('total'))}\n`;
-    const blob = new Blob([csv], {type:'text/csv'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'online-collection-report.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-
-  document.getElementById('downloadXlsxBtn').addEventListener('click', () => {
-    if(!lastRows.length) return;
-    const sum = k => lastRows.reduce((s,r)=>s+r[k],0);
-
-    const TITLE = 'Online Collection Report';
-    const aoa = [
-      [TITLE, '', '', '', '', '', ''],
-      HEADER,
-    ];
-    lastRows.forEach(r => aoa.push([formatDisplayDate(r.date), r.rcdc, r.energy, r.prepaid, r.smart, r.smartcash, r.total]));
-    aoa.push(['Grand Total', sum('rcdc'), sum('energy'), sum('prepaid'), sum('smart'), sum('smartcash'), sum('total')]);
-
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:14},{wch:15},{wch:17},{wch:19},{wch:19},{wch:23},{wch:18}];
-    ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:6} }];
-    ws['!freeze'] = { xSplit:0, ySplit:2 };
-
-    const NAVY = '123540', TEAL = '1E8F7A', AMBER = 'F2A541', WHITE = 'FFFFFF', ZEBRA = 'F4F9F8', INK = '1B2B2E';
-    const thin = { style:'thin', color:{rgb:'C9DEDA'} };
-    const border = { top:thin, bottom:thin, left:thin, right:thin };
-    const currencyFmt = '#,##0.00';
-    const dataFirstRow = 2;              // 0-indexed: first data row
-    const lastRowIdx = aoa.length - 1;   // 0-indexed: grand total row
-    const dataLastExcelRow = lastRowIdx; // excel row number (1-indexed) of last data row — numerically equal to lastRowIdx here
-    const totalExcelRow = lastRowIdx + 1;
-
-    // row heights: title, header (taller for wrapped text), each data row, total row
-    ws['!rows'] = [];
-    ws['!rows'][0] = { hpt: 26 };
-    ws['!rows'][1] = { hpt: 34 };
-    for(let R = dataFirstRow; R < lastRowIdx; R++) ws['!rows'][R] = { hpt: 20 };
-    ws['!rows'][lastRowIdx] = { hpt: 24 };
-
-    // title row
-    for(let C = 0; C <= 6; C++){
-      const addr = XLSX.utils.encode_cell({r:0, c:C});
-      if(ws[addr]) ws[addr].s = { font:{ bold:true, sz:14, color:{rgb:WHITE} }, fill:{ fgColor:{rgb:NAVY} }, alignment:{ horizontal:'center', vertical:'center' }, border };
-    }
-
-    // header row — centered both ways
-    HEADER.forEach((_, C) => {
-      const addr = XLSX.utils.encode_cell({r:1, c:C});
-      if(ws[addr]) ws[addr].s = {
-        font:{ bold:true, sz:10.5, color:{rgb:WHITE} },
-        fill:{ fgColor:{rgb:TEAL} },
-        alignment:{ horizontal:'center', vertical:'center', wrapText:true },
-        border
-      };
-    });
-
-    // data rows — zebra striping + number format + borders; row Grand Total (col G) as a SUM formula
-    for(let R = dataFirstRow; R < lastRowIdx; R++){
-      const excelRow = R + 1;
-      const isEven = (R - dataFirstRow) % 2 === 1;
-      for(let C = 0; C <= 6; C++){
-        const addr = XLSX.utils.encode_cell({r:R, c:C});
-        if(!ws[addr]) continue;
-        const style = {
-          font:{ sz:10.5, color:{rgb:INK} },
-          alignment:{ horizontal: C===0 ? 'center':'right', vertical:'center' },
-          border,
-          fill: isEven ? { fgColor:{rgb:ZEBRA} } : undefined
-        };
-        if(C >= 1) ws[addr].z = currencyFmt;
-        if(C === 6){
-          style.font.bold = true; style.font.color = {rgb:'0F6B5C'};
-          ws[addr].f = `SUM(B${excelRow}:F${excelRow})`;
+      const hwWb = await readWorkbook(headwiseFile);
+      for (const sheetName of hwWb.SheetNames) {
+        const sheet = hwWb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+        for (let i = 1; i < rows.length; i++) {
+          hwRowCount += processHeadwiseRow(rows[i], targetIds, meterCost, rcdcHeadwise, miscHeadwise, excludedHeadwise, RCDC_HEADS);
         }
-        ws[addr].s = style;
+      }
+    }
+    setStatus('headwise', `${hwRowCount} matching rows`);
+
+    // ---- 3. Smart Prepaid Recharge Report(s) (any format, mixed formats OK) ----
+    const spCash = {};
+    const spCheque = {};
+    let spRowCount = 0;
+    for (const file of spFiles) {
+      const ext = getExt(file);
+      if (ext === 'csv' || file.type === 'text/csv') {
+        const rows = await readCSVRows(file);
+        for (let i = 1; i < rows.length; i++) {
+          spRowCount += processSmartPrepaidRow(rows[i], targetIds, spCash, spCheque, rawTotal);
+        }
+      } else {
+        const wb = await readWorkbook(file);
+        for (const sheetName of wb.SheetNames) {
+          const sheet = wb.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+          for (let i = 1; i < rows.length; i++) {
+            spRowCount += processSmartPrepaidRow(rows[i], targetIds, spCash, spCheque, rawTotal);
+          }
+        }
+      }
+    }
+    setStatus('smartprepaid', `${spRowCount} matching rows across ${spFiles.length} file(s)`);
+
+    // ---- Build date range (min to max across all data) ----
+    const allKeys = new Set([
+      ...Object.keys(energy), ...Object.keys(assess), ...Object.keys(rcdcDaily),
+      ...Object.keys(meterCost), ...Object.keys(rcdcHeadwise), ...Object.keys(miscHeadwise),
+      ...Object.keys(spCash), ...Object.keys(spCheque), ...Object.keys(excludedHeadwise),
+      ...Object.keys(rawTotal)
+    ]);
+    if (allKeys.size === 0) {
+      setStatus('msg', 'No matching data found for the given Collector IDs. Please check the IDs and files.', true);
+      document.getElementById('processBtn').disabled = false;
+      return;
+    }
+    const sortedKeys = [...allKeys].sort();
+    const minDate = keyToUTCDate(sortedKeys[0]);
+    const maxDate = keyToUTCDate(sortedKeys[sortedKeys.length - 1]);
+
+    // Outlier check: a single mistyped date (e.g. Excel silently reinterprets
+    // "02-08-2026" typed into a date-formatted cell as 08-Feb instead of
+    // 02-Aug) creates a date isolated far from the rest of the data, which
+    // then drags the whole report's date range open with a long run of
+    // empty/zero days. Flag the largest gap between consecutive dates so the
+    // person can go fix the source file instead of quietly getting a
+    // stretched-out report.
+    let maxGapDays = 0, gapAt = -1;
+    for (let i = 1; i < sortedKeys.length; i++) {
+      const gap = Math.round((keyToUTCDate(sortedKeys[i]) - keyToUTCDate(sortedKeys[i - 1])) / 86400000);
+      if (gap > maxGapDays) { maxGapDays = gap; gapAt = i; }
+    }
+    let outlierWarning = '';
+    if (maxGapDays > 20 && sortedKeys.length > 1) {
+      const before = sortedKeys.slice(0, gapAt);
+      const after = sortedKeys.slice(gapAt);
+      const outliers = before.length <= after.length ? before : after;
+      outlierWarning = ` ⚠️ Warning: ${outliers.length} date(s) — ${outliers.slice(0, 3).join(', ')}${outliers.length > 3 ? '…' : ''} — sit ${maxGapDays} days away from the rest of the data. This usually means a date got typed wrong in one of your source files (Excel often silently reads "DD-MM-YYYY" as "MM-DD-YYYY" when you type into an already date-formatted cell). Please check and fix, then re-upload.`;
+    }
+
+    const rows = [];
+    let cur = new Date(minDate.getTime());
+    const endD = new Date(maxDate.getTime());
+    while (cur <= endD) {
+      const key = cur.getUTCFullYear() + '-' + pad2(cur.getUTCMonth() + 1) + '-' + pad2(cur.getUTCDate());
+      const eCash = (energy[key] && energy[key].cash) || 0;
+      const eCheque = (energy[key] && energy[key].cheque) || 0;
+      const spC = spCash[key] || 0;
+      const spCh = spCheque[key] || 0;
+      const a = assess[key] || 0;
+      const rcdc = (rcdcDaily[key] || 0) + (rcdcHeadwise[key] || 0);
+      const mc = meterCost[key] || 0;
+      const misc = miscHeadwise[key] || 0;
+      const total = eCash + eCheque + spC + spCh + a + rcdc + mc + misc;
+      const revAc = eCash + eCheque + a + spC + spCh;
+      const rcdcAc = rcdc;
+      const dwAc = mc + misc;
+      const excluded = excludedHeadwise[key] || 0;
+      const rawColl = rawTotal[key] || 0;
+      const balance = rawColl - (total + excluded);
+      rows.push({ date: new Date(cur), eCash, eCheque, spC, spCh, a, rcdc, mc, misc, total, revAc, rcdcAc, dwAc, excluded, rawColl, balance });
+      cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
+    }
+
+    computedData = { rows };
+    renderResults(rows);
+    setStatus('msg', `Done — ${rows.length} days processed.${outlierWarning}`, !!outlierWarning);
+  } catch (err) {
+    console.error(err);
+    setStatus('msg', 'Error while processing files: ' + err.message, true);
+  } finally {
+    document.getElementById('processBtn').disabled = false;
+  }
+}
+
+// Shared row-processing logic for the HeadWise report, usable whether the
+// rows came from CSV parsing or from a SheetJS workbook sheet.
+function processHeadwiseRow(row, targetIds, meterCost, rcdcHeadwise, miscHeadwise, excludedHeadwise, RCDC_HEADS) {
+  if (!row || row.length < 10) return 0;
+  const billHead = row[6] === null || row[6] === undefined ? null : String(row[6]).trim();
+  const amount = typeof row[7] === 'number' ? row[7] : parseFloat(row[7]);
+  const key = cellDateToKey(row[8]);
+  const receivedBy = row[9] === null || row[9] === undefined ? null : String(row[9]).trim();
+  if (!billHead || isNaN(amount) || !key || !receivedBy) return 0;
+  if (!targetIds.has(receivedBy)) return 0;
+  if (billHead === 'TEMPORARY SERVICE CONNECTION ENERGY CHARGE') {
+    excludedHeadwise[key] = (excludedHeadwise[key] || 0) + amount;
+    return 1;
+  }
+  if (billHead.includes('METER COST')) {
+    if (amount === 2400 || amount === 6000) {
+      excludedHeadwise[key] = (excludedHeadwise[key] || 0) + amount;
+      return 1;
+    }
+    meterCost[key] = (meterCost[key] || 0) + amount;
+  } else if (RCDC_HEADS.has(billHead)) {
+    rcdcHeadwise[key] = (rcdcHeadwise[key] || 0) + amount;
+  } else {
+    miscHeadwise[key] = (miscHeadwise[key] || 0) + amount;
+  }
+  return 1;
+}
+
+// Shared row-processing logic for Smart Prepaid reports, usable whether the
+// rows came from CSV parsing or from a SheetJS workbook sheet.
+function processSmartPrepaidRow(row, targetIds, spCash, spCheque, rawTotal) {
+  if (!row || row.length < 11) return 0;
+  const mode = row[2] === null || row[2] === undefined ? null : String(row[2]).trim();
+  const amount = typeof row[3] === 'number' ? row[3] : parseFloat(row[3]);
+  const key = cellDateToKey(row[4]);
+  const cid = row[10] === null || row[10] === undefined ? null : String(row[10]).trim();
+  if (!mode || isNaN(amount) || !key || !cid) return 0;
+  if (!targetIds.has(cid)) return 0;
+  // Unfiltered: every payment mode counts towards the raw total (cash, cheque, rtgs, adjustments — everything).
+  rawTotal[key] = (rawTotal[key] || 0) + amount;
+  if (mode === 'cash' || mode === 'cash_os') {
+    spCash[key] = (spCash[key] || 0) + amount;
+  } else if (mode === 'cheque') {
+    spCheque[key] = (spCheque[key] || 0) + amount;
+  }
+  return 1;
+}
+
+function fmt(n) {
+  return Math.round(n || 0).toLocaleString('en-IN');
+}
+
+function renderResults(rows) {
+  document.getElementById('idListLabel').textContent = getTargetIds().join(', ');
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  const g = { eCash:0, eCheque:0, spC:0, spCh:0, a:0, rcdc:0, mc:0, misc:0, total:0, revAc:0, rcdcAc:0, dwAc:0, excluded:0, rawColl:0, balance:0 };
+
+  for (const r of rows) {
+    for (const k in g) g[k] += (r[k] || 0);
+    const tr = document.createElement('tr');
+    const dstr = r.date.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'2-digit', timeZone: 'UTC' });
+    tr.innerHTML = `
+      <td>${dstr}</td>
+      <td class="num">${fmt(r.eCash)}</td>
+      <td class="num">${fmt(r.eCheque)}</td>
+      <td class="num">${fmt(r.spC)}</td>
+      <td class="num">${fmt(r.spCh)}</td>
+      <td class="num">${fmt(r.a)}</td>
+      <td class="num">${fmt(r.rcdc)}</td>
+      <td class="num">${fmt(r.mc)}</td>
+      <td class="num">${fmt(r.misc)}</td>
+      <td class="num total-col">${fmt(r.total)}</td>
+      <td class="num">${fmt(r.revAc)}</td>
+      <td class="num">${fmt(r.rcdcAc)}</td>
+      <td class="num">${fmt(r.dwAc)}</td>
+      <td class="num total-col">${fmt(r.total)}</td>
+      <td class="num">${fmt(r.excluded)}</td>
+      <td class="num total-col">${fmt(r.rawColl)}</td>
+      <td class="num">${fmt(r.balance)}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  const totalTr = document.createElement('tr');
+  totalTr.className = 'grand-total';
+  totalTr.innerHTML = `
+    <td>TOTAL</td>
+    <td class="num">${fmt(g.eCash)}</td>
+    <td class="num">${fmt(g.eCheque)}</td>
+    <td class="num">${fmt(g.spC)}</td>
+    <td class="num">${fmt(g.spCh)}</td>
+    <td class="num">${fmt(g.a)}</td>
+    <td class="num">${fmt(g.rcdc)}</td>
+    <td class="num">${fmt(g.mc)}</td>
+    <td class="num">${fmt(g.misc)}</td>
+    <td class="num total-col">${fmt(g.total)}</td>
+    <td class="num">${fmt(g.revAc)}</td>
+    <td class="num">${fmt(g.rcdcAc)}</td>
+    <td class="num">${fmt(g.dwAc)}</td>
+    <td class="num total-col">${fmt(g.total)}</td>
+    <td class="num">${fmt(g.excluded)}</td>
+    <td class="num total-col">${fmt(g.rawColl)}</td>
+    <td class="num">${fmt(g.balance)}</td>`;
+  tbody.appendChild(totalTr);
+
+  const metaCards = document.getElementById('metaCards');
+  metaCards.innerHTML = `
+    <div class="card"><div class="label">Energy Bill</div><div class="value">₹${fmt(g.eCash+g.eCheque)}</div></div>
+    <div class="card"><div class="label">Smart Prepaid</div><div class="value">₹${fmt(g.spC+g.spCh)}</div></div>
+    <div class="card"><div class="label">Assessment</div><div class="value">₹${fmt(g.a)}</div></div>
+    <div class="card"><div class="label">RC/DC</div><div class="value">₹${fmt(g.rcdc)}</div></div>
+    <div class="card"><div class="label">Meter Cost</div><div class="value">₹${fmt(g.mc)}</div></div>
+    <div class="card"><div class="label">Grand Total</div><div class="value">₹${fmt(g.total)}</div></div>
+    <div class="card"><div class="label">Total Collection (ID-wise)</div><div class="value">₹${fmt(g.rawColl)}</div></div>
+    <div class="card"><div class="label">Balance</div><div class="value">₹${fmt(g.balance)}</div></div>`;
+
+  document.getElementById('resultsSection').style.display = 'block';
+}
+
+async function downloadExcel() {
+  if (!computedData) return;
+  const rows = computedData.rows;
+  const btn = document.querySelector('.btn-row .btn.secondary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Building file...'; }
+
+  try {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Collection Report');
+    // Indian digit grouping (lakh/crore) needs a magnitude-aware conditional
+    // format — a plain "#,##,##0" doesn't scale correctly once a value
+    // crosses into lakhs in most Excel versions, so we branch by size.
+    const INR_FMT = '[>9999999]##\\,##\\,##\\,##0;[>99999]##\\,##\\,##0;##,##0';
+    const totalCols = 17; // A..N (14) + Temporary (O) + Total Collection ID-wise (P) + Balance (Q)
+
+    ws.columns = [
+      { width: 12 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 },
+      { width: 11 }, { width: 9 },  { width: 11 }, { width: 9 },  { width: 12 },
+      { width: 11 }, { width: 11 }, { width: 10 }, { width: 12 }, { width: 13 },
+      { width: 16 }, { width: 12 },
+    ];
+
+    const thinBorder = {
+      top: { style: 'thin', color: { argb: 'FFB0B7BF' } },
+      left: { style: 'thin', color: { argb: 'FFB0B7BF' } },
+      bottom: { style: 'thin', color: { argb: 'FFB0B7BF' } },
+      right: { style: 'thin', color: { argb: 'FFB0B7BF' } },
+    };
+
+    // ---- Header rows (1-3) ----
+    ws.mergeCells('A1:A3');
+    ws.mergeCells('B1:J1');
+    ws.mergeCells('K1:N1');
+    ws.mergeCells('O1:O3');
+    ws.mergeCells('P1:P3');
+    ws.mergeCells('Q1:Q3');
+    ws.mergeCells('B2:C2');
+    ws.mergeCells('D2:E2');
+    ws.mergeCells('F2:F3');
+    ws.mergeCells('G2:G3');
+    ws.mergeCells('H2:H3');
+    ws.mergeCells('I2:I3');
+    ws.mergeCells('J2:J3');
+    ws.mergeCells('K2:K3');
+    ws.mergeCells('L2:L3');
+    ws.mergeCells('M2:M3');
+    ws.mergeCells('N2:N3');
+
+    ws.getCell('A1').value = 'DATE';
+    ws.getCell('B1').value = 'Collection';
+    ws.getCell('K1').value = 'Deposite';
+    ws.getCell('O1').value = 'Temporary';
+    ws.getCell('P1').value = 'Total Collection (ID-wise)';
+    ws.getCell('Q1').value = 'Balance';
+    ws.getCell('B2').value = 'ENERGY BILL';
+    ws.getCell('D2').value = 'Smart Prepaid';
+    ws.getCell('F2').value = 'Assessment';
+    ws.getCell('G2').value = 'RC/DC';
+    ws.getCell('H2').value = 'Meter Cost';
+    ws.getCell('I2').value = 'Misc';
+    ws.getCell('J2').value = 'Total';
+    ws.getCell('K2').value = 'Rev Ac';
+    ws.getCell('L2').value = 'RC/DC AC';
+    ws.getCell('M2').value = 'DW AC';
+    ws.getCell('N2').value = 'Total';
+    ws.getCell('B3').value = 'cash';
+    ws.getCell('C3').value = 'Cheque';
+    ws.getCell('D3').value = 'cash';
+    ws.getCell('E3').value = 'Cheque';
+
+    for (let r = 1; r <= 3; r++) {
+      const row = ws.getRow(r);
+      row.height = 20;
+      for (let c = 1; c <= totalCols; c++) {
+        const cell = row.getCell(c);
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c > 15 ? 'FF203A5C' : (c === 15 ? 'FF5A3B1C' : (c >= 11 ? 'FF1F3B2C' : 'FF1C2733')) } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        cell.border = thinBorder;
       }
     }
 
-    // grand total row — every amount column as a SUM formula over the data range
-    const colLetters = ['B','C','D','E','F','G'];
-    for(let C = 0; C <= 6; C++){
-      const addr = XLSX.utils.encode_cell({r:lastRowIdx, c:C});
-      if(!ws[addr]) continue;
-      if(C >= 1){
-        ws[addr].z = currencyFmt;
-        ws[addr].f = `SUM(${colLetters[C-1]}${dataFirstRow+1}:${colLetters[C-1]}${dataLastExcelRow})`;
+    // ---- Data rows ----
+    let r = 4;
+    const firstDataRow = 4;
+    for (const row of rows) {
+      const y = row.date.getUTCFullYear(), m = row.date.getUTCMonth() + 1, d = row.date.getUTCDate();
+      const dateStr = pad2(d) + '-' + pad2(m) + '-' + y; // DD-MM-YYYY, plain text (avoids any date-serial/timezone issues)
+      // Raw values for every column except the two Total columns (J, N),
+      // which are written as live SUM formulas instead of static numbers.
+      const rawVals = [row.eCash, row.eCheque, row.spC, row.spCh, row.a, row.rcdc, row.mc, row.misc, null, row.revAc, row.rcdcAc, row.dwAc, null];
+
+      const excelRow = ws.getRow(r);
+      excelRow.getCell(1).value = dateStr;
+      for (let i = 0; i < rawVals.length; i++) {
+        const col = 2 + i; // column B=2 .. N=14
+        if (col === 10) {
+          excelRow.getCell(col).value = { formula: `SUM(B${r}:I${r})` };
+        } else if (col === 14) {
+          excelRow.getCell(col).value = { formula: `SUM(K${r}:M${r})` };
+        } else {
+          excelRow.getCell(col).value = Math.round(rawVals[i] || 0);
+        }
       }
-      ws[addr].s = {
-        font:{ bold:true, sz:11, color:{rgb:INK} },
-        fill:{ fgColor:{rgb:AMBER} },
-        alignment:{ horizontal: C===0 ? 'center':'right', vertical:'center' },
-        border
+      excelRow.getCell(15).value = Math.round(row.excluded || 0);
+      excelRow.getCell(16).value = Math.round(row.rawColl || 0);
+      excelRow.getCell(17).value = { formula: `P${r}-(J${r}+O${r})` };
+
+      for (let c = 1; c <= totalCols; c++) {
+        const cell = excelRow.getCell(c);
+        cell.border = thinBorder;
+        if (c === 1) {
+          cell.alignment = { horizontal: 'center' };
+          cell.font = { color: { argb: 'FF444444' } };
+        } else {
+          cell.numFmt = INR_FMT;
+          cell.alignment = { horizontal: 'right' };
+          if (c === 10 || c === 14 || c === 16) cell.font = { bold: true, color: { argb: 'FF1F5FBF' } };
+          if (c === 15) cell.font = { italic: true, color: { argb: 'FF8A5A2B' } };
+          if (c === 17) cell.font = { bold: true, color: { argb: 'FFB03A2E' } };
+        }
+        if (r % 2 === 0) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F6FA' } };
+        }
+      }
+      r++;
+    }
+    const lastDataRow = r - 1;
+
+    // ---- Total row (also live SUM formulas, one per column) ----
+    const totalRow = ws.getRow(r);
+    totalRow.getCell(1).value = 'TOTAL';
+    ['B','C','D','E','F','G','H','I','K','L','M','O','P','Q'].forEach(col => {
+      totalRow.getCell(col).value = { formula: `SUM(${col}${firstDataRow}:${col}${lastDataRow})` };
+    });
+    totalRow.getCell('J').value = { formula: `SUM(B${r}:I${r})` };
+    totalRow.getCell('N').value = { formula: `SUM(K${r}:M${r})` };
+
+    for (let c = 1; c <= totalCols; c++) {
+      const cell = totalRow.getCell(c);
+      cell.font = { bold: true, color: { argb: c === 15 ? 'FF6B3E12' : 'FF0B3D19' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c === 15 ? 'FFF3E0C8' : 'FFCFEFD7' } };
+      cell.border = {
+        top: { style: 'medium', color: { argb: 'FF3FB950' } },
+        left: { style: 'thin', color: { argb: 'FFB0B7BF' } },
+        bottom: { style: 'thin', color: { argb: 'FFB0B7BF' } },
+        right: { style: 'thin', color: { argb: 'FFB0B7BF' } },
       };
+      if (c > 1) { cell.numFmt = INR_FMT; cell.alignment = { horizontal: 'right' }; }
+      else cell.alignment = { horizontal: 'center' };
     }
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Online Collection');
-    XLSX.writeFile(wb, 'online-collection-report.xlsx');
-  });
+    ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3, topLeftCell: 'A4', activeCell: 'A4' }];
 
-  updateLoadedCount();
-})();
+    wb.creator = 'Collection Report Builder';
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/octet-stream' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const firstDate = rows[0].date;
+    const monthLabel = MONTH_NAMES[firstDate.getUTCMonth()] + ' ' + firstDate.getUTCFullYear();
+    link.download = `Collection Report - ${monthLabel}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error(err);
+    alert('Excel banate waqt error aayi: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⬇ Download Collection Report'; }
+  }
+}
+
+['file-daily','file-headwise','file-smartprepaid'].forEach(id => {
+  document.getElementById(id).addEventListener('change', function() {
+    const slotId = id.replace('file-', 'slot-');
+    const slot = document.getElementById(slotId);
+    if (this.files.length > 0) slot.classList.add('filled');
+    else slot.classList.remove('filled');
+  });
+});
 </script>
 </body>
 </html>
