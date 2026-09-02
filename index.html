@@ -3,863 +3,655 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Collection Report Builder</title>
+<title>RCDC Deposit Statement Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
-  :root {
-    --bg: #0f1419; --panel: #161b22; --border: #2a323c;
-    --text: #e6edf3; --muted: #8b949e; --accent: #4f8cff; --accent2: #3fb950;
-    --danger: #f85149;
-    --header-bg: #1c2733; --row-alt: #131a22; --total-bg: #1a2f22;
+  :root{
+    --navy:#1B3358; --navy-deep:#12233E; --teal:#0E7C7B; --amber:#B7791F;
+    --paper:#F6F7F9; --card:#FFFFFF; --ink:#1F2430; --muted:#66707E;
+    --line:#E1E5EA; --line-strong:#C7CDD6; --pos:#0E7C4F; --neg:#B23B3B;
   }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family:'Segoe UI',Roboto,-apple-system,sans-serif; background:var(--bg); color:var(--text); padding:32px 16px 64px; }
-  .wrap { max-width: 1250px; margin: 0 auto; }
-  h1 { font-size: 1.5rem; margin: 0 0 4px; font-weight: 600; }
-  h2 { font-size: 1.05rem; margin: 28px 0 10px; font-weight: 600; color: var(--text); }
-  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:'Inter', system-ui, sans-serif; line-height:1.5; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:980px; margin:0 auto; padding:40px 20px 80px;}
 
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  .letterhead{
+    background:linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
+    color:#fff; border-radius:10px; padding:34px 38px 30px; position:relative; overflow:hidden;
+  }
+  .letterhead::after{
+    content:""; position:absolute; top:-60px; right:-60px; width:220px; height:220px;
+    border-radius:50%; background:radial-gradient(circle, rgba(14,124,123,0.35), transparent 70%);
+  }
+  .org{font-size:13px; letter-spacing:0.02em; color:#B9C6DA; position:relative; z-index:1;}
+  h1{
+    font-family:'Source Serif 4', serif; font-weight:600; font-size:clamp(22px, 3.2vw, 30px);
+    line-height:1.28; margin:14px 0 8px; position:relative; z-index:1; max-width:640px;
+  }
+  .tagline{font-size:15px; color:#D7DEE9; position:relative; z-index:1; max-width:560px;}
 
-  .id-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom: 18px; }
-  .id-row label { font-size: 0.82rem; color: var(--muted); }
-  .id-row input[type=text] {
-    background: var(--bg); border: 1px solid var(--border); color: var(--text);
-    border-radius: 6px; padding: 8px 10px; font-size: 0.85rem; width: 260px;
+  .section-title{display:flex; align-items:center; gap:10px; margin:36px 0 14px;}
+  .section-title h2{font-family:'Source Serif 4', serif; font-weight:600; font-size:19px; margin:0; color:var(--navy-deep);}
+  .section-title .rule{flex:1; height:1px; background:var(--line-strong);}
+
+  .card{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:24px 26px;}
+
+  .step-badge{
+    display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px;
+    border-radius:50%; background:var(--teal); color:#fff; font-size:12px; font-weight:700; margin-right:9px;
   }
 
-  .upload-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
-  .upload-slot {
-    border: 1.5px dashed var(--border); border-radius: 10px; padding: 16px;
-    background: var(--bg); transition: border-color 0.15s;
+  .upload-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .dropzone{
+    border:1.5px dashed var(--line-strong); border-radius:9px; padding:22px 18px; text-align:center;
+    cursor:pointer; transition:border-color .15s, background .15s; background:#FBFCFD;
   }
-  .upload-slot.filled { border-color: var(--accent2); border-style: solid; }
-  .upload-slot .title { font-weight: 600; font-size: 0.88rem; margin-bottom: 4px; }
-  .upload-slot .desc { color: var(--muted); font-size: 0.75rem; margin-bottom: 10px; line-height:1.4; }
-  .upload-slot input[type=file] { font-size: 0.78rem; color: var(--muted); width: 100%; }
-  .upload-slot .status { margin-top: 8px; font-size: 0.78rem; color: var(--accent2); min-height: 1em; }
+  .dropzone:hover, .dropzone.drag{border-color:var(--teal); background:#F0F8F7;}
+  .dropzone.filled{border-color:var(--pos); background:#F1F9F4;}
+  .dropzone .dz-title{font-weight:600; font-size:14.5px; margin-bottom:4px; color:var(--navy-deep);}
+  .dropzone .dz-sub{font-size:12.5px; color:var(--muted);}
+  .dropzone .dz-file{font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--pos); margin-top:8px; word-break:break-all;}
+  .dropzone input{display:none;}
 
-  .btn {
-    background: var(--accent2); color: #04240f; border: none; border-radius: 8px;
-    padding: 11px 20px; font-weight: 600; font-size: 0.9rem; cursor: pointer;
+  details.adv{margin-top:18px;}
+  details.adv summary{cursor:pointer; font-size:13.5px; font-weight:600; color:var(--navy); padding:6px 0;}
+  .adv-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px;}
+  .field{display:flex; flex-direction:column; gap:5px;}
+  .field label{font-size:12.5px; color:var(--muted); font-weight:600;}
+  .field input, .field select{
+    font-family:'Inter', sans-serif; font-size:14px; padding:8px 10px; border:1px solid var(--line-strong);
+    border-radius:7px; background:#fff; color:var(--ink);
   }
-  .btn:hover { opacity: 0.9; }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn.secondary { background: var(--accent); color: #04122e; }
-  .btn-row { display:flex; gap:12px; align-items:center; margin: 18px 0; flex-wrap:wrap; }
+  .field input:focus, .field select:focus{outline:2px solid var(--teal); outline-offset:1px;}
+  .field .hint{font-size:11px; color:#93A0AF;}
 
-  #status-msg { color: var(--muted); font-size: 0.85rem; }
-  #status-msg.error { color: var(--danger); }
+  .row-actions{display:flex; align-items:center; gap:14px; margin-top:22px; flex-wrap:wrap;}
+  button.primary{
+    font-family:'Inter', sans-serif; font-size:14px; font-weight:700; background:var(--navy); color:#fff;
+    border:none; padding:11px 22px; border-radius:8px; cursor:pointer;
+  }
+  button.primary:disabled{background:#B9C2CE; cursor:not-allowed;}
+  button.primary:not(:disabled):hover{background:var(--navy-deep);}
+  button.secondary{
+    font-family:'Inter', sans-serif; font-size:13.5px; font-weight:600; background:#fff; color:var(--navy);
+    border:1.5px solid var(--navy); padding:9px 18px; border-radius:8px; cursor:pointer;
+  }
+  button.secondary:hover{background:#EEF1F6;}
+  button:focus-visible{outline:3px solid var(--teal); outline-offset:2px;}
+  .status{font-size:13px; color:var(--muted);}
+  .status.err{color:var(--neg); font-weight:600;}
+  .status.ok{color:var(--pos); font-weight:600;}
 
-  .meta-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
-  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
-  .card .label { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
-  .card .value { font-size: 1.2rem; font-weight: 600; color: var(--accent2); }
+  .summary{display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; margin-top:22px;}
+  .stat{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 16px 14px;}
+  .stat .label{font-size:12px; color:var(--muted); margin-bottom:7px;}
+  .stat .value{font-family:'IBM Plex Mono', monospace; font-size:20px; font-weight:600; color:var(--navy);}
+  .stat.closing .value{color:var(--pos);}
 
-  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
-  table { border-collapse: collapse; width: 100%; min-width: 1150px; font-size: 0.82rem; }
-  thead th { background: var(--header-bg); color: var(--text); font-weight: 600; padding: 8px 10px; text-align: right; border: 1px solid var(--border); white-space: nowrap; }
-  thead th:first-child { text-align: left; }
-  thead tr.section-row th { text-align: center; background: #21293380; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
-  tbody td { padding: 6px 10px; border: 1px solid var(--border); }
-  tbody tr:nth-child(even) { background: var(--row-alt); }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  td.total-col { font-weight: 600; color: var(--accent); }
-  tr.grand-total { background: var(--total-bg) !important; font-weight: 700; }
+  .table-card{background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden;}
+  .table-scroll{overflow-x:auto; max-height:520px; overflow-y:auto;}
+  table{width:100%; border-collapse:collapse; font-size:14px; min-width:600px;}
+  thead th{
+    position:sticky; top:0; background:var(--navy); color:#fff; text-align:right; font-weight:600;
+    padding:10px 16px; font-size:12.5px;
+  }
+  thead th:first-child, thead th:nth-child(2){text-align:left;}
+  tbody td{padding:8px 16px; text-align:right; border-bottom:1px solid var(--line); font-family:'IBM Plex Mono', monospace; font-size:13.5px;}
+  tbody td:first-child{font-family:'Inter', sans-serif; color:var(--muted); text-align:left; width:44px;}
+  tbody td:nth-child(2){font-family:'Inter', sans-serif; text-align:left;}
+  tbody tr:nth-child(even){background:#FAFBFC;}
+  tbody tr.zero td{color:#B7BEC8;}
+  tfoot td{padding:11px 16px; font-weight:700; font-family:'IBM Plex Mono', monospace; background:#EEF1F6; border-top:2px solid var(--line-strong);}
+  tfoot td:first-child, tfoot td:nth-child(2){font-family:'Inter', sans-serif; text-align:left; color:var(--navy-deep);}
 
-  footer { margin-top: 24px; color: var(--muted); font-size: 0.78rem; line-height: 1.6; }
-  footer code { background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+  .recon{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px 24px;}
+  .recon-row{display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px dashed var(--line); font-size:14px;}
+  .recon-row:last-child{border-bottom:none;}
+  .recon-row .amt{font-family:'IBM Plex Mono', monospace; font-weight:600; white-space:nowrap;}
+  .recon-row.final{padding-top:13px; border-top:2px solid var(--line-strong); margin-top:3px;}
+  .recon-row.final .amt{color:var(--pos); font-size:15.5px;}
 
-  #resultsSection { display: none; }
+  #resultsArea{display:none;}
+  .download-row{display:flex; justify-content:flex-end; margin-top:20px;}
+
+  .notes{margin-top:34px; font-size:12.5px; color:var(--muted);}
+  .notes code{background:#EEF1F6; padding:1px 6px; border-radius:4px; font-family:'IBM Plex Mono', monospace; font-size:11.5px;}
+
+  footer{text-align:center; margin-top:46px; font-size:12px; color:#93A0AF;}
+
+  @media (max-width:720px){
+    .upload-grid, .adv-grid{grid-template-columns:1fr;}
+    .summary{grid-template-columns:repeat(2,1fr);}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Collection Report Builder</h1>
-  <div class="subtitle">Upload this month's source files → get the coll.xlsx collection report automatically.</div>
 
-  <div class="panel">
-    <h2 style="margin-top:0;">1. Collector IDs</h2>
-    <div class="id-row">
-      <label>Collector IDs to include (comma separated):</label>
-      <input type="text" id="collectorIds" value="40003813, 40003144">
-    </div>
+  <div class="letterhead">
+    <div class="org">APDCL Subsidiary A/c — RCDC Deposit Register</div>
+    <h1>RCDC Deposit Statement Generator</h1>
+    <div class="tagline">Upload the month's MIS Daily Collection and Headwise Collection Report — the day-wise statement is built automatically and ready to download as Excel.</div>
+  </div>
 
-    <h2>2. Upload files for this month</h2>
+  <div class="section-title"><h2><span class="step-badge">1</span>Upload source files</h2><div class="rule"></div></div>
+  <div class="card">
     <div class="upload-grid">
-      <div class="upload-slot" id="slot-daily">
-        <div class="title">Daily Collection (CSV)</div>
-        <div class="desc">MIS_Daily_Collection...csv — Energy Bill, Assessment Bill, RC/DC</div>
-        <input type="file" id="file-daily" accept=".csv">
-        <div class="status" id="status-daily"></div>
-      </div>
-      <div class="upload-slot" id="slot-headwise">
-        <div class="title">HeadWise Collection Report</div>
-        <div class="desc">headwiseCollectionReport...xls — Meter Cost, RC/DC, Misc (temporary energy charge and meter-cost entries of ₹2,400/₹6,000 auto-excluded)</div>
-        <input type="file" id="file-headwise" accept=".xls,.xlsx">
-        <div class="status" id="status-headwise"></div>
-      </div>
-      <div class="upload-slot" id="slot-smartprepaid">
-        <div class="title">Smart Prepaid Recharge Report(s)</div>
-        <div class="desc">smartPrepaidRechargeReport...xls — you can select multiple files at once (hold Ctrl/Cmd)</div>
-        <input type="file" id="file-smartprepaid" accept=".xls,.xlsx" multiple>
-        <div class="status" id="status-smartprepaid"></div>
-      </div>
+      <label class="dropzone" id="dzMis">
+        <div class="dz-title">MIS Daily Collection</div>
+        <div class="dz-sub">.csv, .xls or .xlsx — click or drop file</div>
+        <div class="dz-file" id="dzMisFile"></div>
+        <input type="file" id="fileMis" accept=".csv,.xls,.xlsx">
+      </label>
+      <label class="dropzone" id="dzHw">
+        <div class="dz-title">Headwise Collection Report</div>
+        <div class="dz-sub">.xls or .xlsx — click or drop file</div>
+        <div class="dz-file" id="dzHwFile"></div>
+        <input type="file" id="fileHw" accept=".csv,.xls,.xlsx">
+      </label>
     </div>
 
-    <div class="btn-row">
-      <button class="btn" id="processBtn" onclick="processFiles()">Build Report</button>
-      <span id="status-msg"></span>
+    <details class="adv">
+      <summary>Statement settings (month, sub-division, ID mapping)</summary>
+      <div class="adv-grid">
+        <div class="field">
+          <label>Month</label>
+          <select id="fMonth"></select>
+        </div>
+        <div class="field">
+          <label>Year</label>
+          <input type="number" id="fYear" value="2026">
+        </div>
+        <div class="field">
+          <label>Sub-division name</label>
+          <input type="text" id="fSubdiv" value="ABHAYAPURI ELECTRICAL SUB-DIVISION">
+        </div>
+        <div class="field">
+          <label>Opening balance (₹)</label>
+          <input type="number" id="fOpening" value="0">
+        </div>
+        <div class="field">
+          <label>Cash-deposit collector IDs</label>
+          <input type="text" id="fCashIds" value="40003813, 40003144, 40014521">
+          <span class="hint">comma-separated collector IDs whose MIS collection goes into Cash Deposit to Bank</span>
+        </div>
+        <div class="field">
+          <label>Online collector ID</label>
+          <input type="text" id="fOnlineId" value="ONLINE">
+        </div>
+        <div class="field" style="grid-column:1/-1;">
+          <label>Headwise bill heads added to Cash Deposit / Total Collection</label>
+          <input type="text" id="fDisconnHeads" value="DISCONNECTION RECONNECTION CHARGE, NEW SERVICE CONNECTION DISCONNECTION CHARGE">
+          <span class="hint">comma-separated Bill Head values from the headwise report</span>
+        </div>
+      </div>
+    </details>
+
+    <div class="row-actions">
+      <button class="primary" id="btnGenerate" disabled>Generate statement</button>
+      <span class="status" id="statusMsg"></span>
     </div>
   </div>
 
-  <div id="resultsSection">
-    <div class="meta-cards" id="metaCards"></div>
+  <div id="resultsArea">
+    <div class="section-title"><h2><span class="step-badge">2</span>Review &amp; download</h2><div class="rule"></div></div>
 
-    <div class="btn-row">
-      <button class="btn secondary" onclick="downloadExcel()">⬇ Download Collection Report</button>
+    <div class="summary">
+      <div class="stat"><div class="label">Opening balance</div><div class="value" id="statOpening">—</div></div>
+      <div class="stat"><div class="label">Total collection</div><div class="value" id="statCollection">—</div></div>
+      <div class="stat"><div class="label">Total deposit</div><div class="value" id="statDeposit">—</div></div>
+      <div class="stat closing"><div class="label">Closing balance</div><div class="value" id="statClosing">—</div></div>
     </div>
 
-    <div class="table-scroll">
-    <table id="collTable">
-      <thead>
-        <tr class="section-row" id="sectionHeaderRow">
-          <th rowspan="3">DATE</th>
-          <th colspan="9">Collection</th>
-          <th colspan="4">Deposite</th>
-          <th rowspan="3">Temporary</th>
-          <th rowspan="3">Total Collection<br>(ID-wise)</th>
-          <th rowspan="3">Balance</th>
-        </tr>
-        <tr>
-          <th colspan="2">ENERGY BILL</th>
-          <th colspan="2">Smart Prepaid</th>
-          <th rowspan="2">Assessment</th>
-          <th rowspan="2">RC/DC</th>
-          <th rowspan="2">Meter Cost</th>
-          <th rowspan="2">Misc</th>
-          <th rowspan="2">Total</th>
-          <th rowspan="2">Rev Ac</th>
-          <th rowspan="2">RC/DC AC</th>
-          <th rowspan="2">DW AC</th>
-          <th rowspan="2">Total</th>
-        </tr>
-        <tr>
-          <th>cash</th><th>Cheque</th><th>cash</th><th>Cheque</th>
-        </tr>
-      </thead>
-      <tbody id="tableBody"></tbody>
-    </table>
-    </div>
-    <div style="color:var(--muted); font-size:0.78rem; margin-top:6px;">
-      "Temporary" = Temporary Energy Charge + Meter Cost entries of exactly ₹2,400 / ₹6,000 from the HeadWise report — kept aside, not part of any Collection/Deposite total.<br>
-      "Total Collection (ID-wise)" = everything for Collector IDs <span id="idListLabel"></span> combined — every bill type from Daily Collection (Energy Bill, Assessment, RC/DC, New Service Connection, Testing, Change Process, Meter Seal, all of it) plus every payment mode from Smart Prepaid. Nothing excluded; not split by category.<br>
-      "Balance" = Total Collection (ID-wise) − (Collection Total + Temporary).<br>
-      The downloaded Excel file also includes every uploaded source file as its own sheet(s) (Daily Collection, HeadWise, and each Smart Prepaid file), exactly as uploaded, alongside the computed "Collection Report" sheet.
+    <div class="section-title" style="margin-top:30px;"><h2>Day-wise deposit</h2><div class="rule"></div></div>
+    <div class="table-card">
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>SL</th><th>Date</th><th>Cash deposit to bank</th><th>Online</th><th>Easy Pay</th></tr></thead>
+          <tbody id="tblBody"></tbody>
+          <tfoot><tr><td></td><td>Total</td><td id="footCash"></td><td id="footOnline"></td><td id="footEasypay"></td></tr></tfoot>
+        </table>
+      </div>
     </div>
 
+    <div class="section-title"><h2>Reconciliation</h2><div class="rule"></div></div>
+    <div class="recon">
+      <div class="recon-row"><span>1. Opening balance (RCDC)</span><span class="amt" id="rOpening">—</span></div>
+      <div class="recon-row"><span>2. Total collection</span><span class="amt" id="rCollection">—</span></div>
+      <div class="recon-row"><span>3. Total deposit</span><span class="amt" id="rDeposit">—</span></div>
+      <div class="recon-row final"><span>4. Closing balance as per cash book</span><span class="amt" id="rClosing">—</span></div>
+    </div>
 
-
-    <footer>
-      RC/DC = Daily Collection (Disconnection/Reconnection Charge) + HeadWise (Disconnection Reconnection Charge + New Service Connection Disconnection Charge).<br>
-      Deposite → Rev A/c = Energy Bill + Assessment + Smart Prepaid &nbsp;|&nbsp; RC/DC A/c = All RC/DC &nbsp;|&nbsp; DW A/c = Meter Cost + Misc.<br>
-      Temporary Energy Charge and Meter Cost entries of exactly ₹2,400 / ₹6,000 are excluded from HeadWise data. Only the Collector IDs listed above are included; everything else is ignored.
-    </footer>
+    <div class="download-row">
+      <button class="secondary" id="btnDownload">Download Excel (.xlsx)</button>
+    </div>
   </div>
+
+  <div class="notes">
+    How the columns are built:
+    <ul>
+      <li><code>Online</code> — MIS Daily rows where Collector ID matches the Online ID setting.</li>
+      <li><code>Cash Deposit to Bank</code> — MIS Daily rows for the Cash-deposit collector IDs, plus Headwise rows whose Bill Head matches the configured disconnection/reconnection charges.</li>
+      <li><code>Easy Pay</code> — every other collector ID's MIS Daily collection.</li>
+      <li><code>Total Collection</code> — all MIS Daily payments for the month plus the matched Headwise charges.</li>
+      <li><code>Total Deposit</code> — Cash Deposit to Bank + Online + Easy Pay.</li>
+    </ul>
+    The downloaded workbook also includes the raw uploaded data on two extra sheets, with the statement linked to them by formula — so it recalculates in Excel if you edit the raw rows.
+  </div>
+
+  <footer>RCDC Deposit Statement Generator — runs entirely in your browser, no data is uploaded anywhere.</footer>
 </div>
 
 <script>
-let computedData = null; // { rows: [...], raw: {...} }
-let rawSourceData = { daily: null, headwise: null, smartprepaid: [] }; // captured verbatim for export as extra sheets
+const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const fMonth = document.getElementById('fMonth');
+monthNames.forEach((m,i)=>{
+  const o = document.createElement('option');
+  o.value = i+1; o.textContent = m;
+  fMonth.appendChild(o);
+});
+fMonth.value = 5; // default May, matches current sample context
 
-function setStatus(id, msg, isError) {
-  const el = document.getElementById('status-' + id);
-  if (el) el.textContent = msg;
-  if (id === 'msg') {
-    const m = document.getElementById('status-msg');
-    m.textContent = msg;
-    m.className = isError ? 'error' : '';
-  }
+let misRows = null, hwRows = null;
+let lastResult = null;
+
+function norm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+
+function excelSerialToDate(n){
+  // Excel epoch (1900 system), matches SheetJS's own conversion
+  const utc = XLSX.SSF.parse_date_code(n);
+  return new Date(Date.UTC(utc.y, utc.m-1, utc.d));
 }
 
-// All date handling below works directly off the calendar y/m/d components
-// (never through a JS Date object's local/UTC getters while reading source
-// files) so the result can never shift by a day because of the browser's
-// timezone. A JS Date (built with Date.UTC) is only constructed at the very
-// end, purely to sort/iterate/display, and is always read back with the UTC
-// getters to match how it was built.
-
-function pad2(n) { return String(n).padStart(2, '0'); }
-
-// Excel serial date number -> 'YYYY-MM-DD' key, no Date object involved.
-function excelSerialToKey(serial) {
-  const d = XLSX.SSF.parse_date_code(serial);
-  if (!d) return null;
-  return d.y + '-' + pad2(d.m) + '-' + pad2(d.d);
-}
-
-// Accepts a raw cell value (number, string, or Date) coming from either the
-// CSV or an Excel file and returns a 'YYYY-MM-DD' key using its own calendar
-// components only.
-function cellDateToKey(v) {
-  if (v === null || v === undefined || v === '') return null;
-  if (typeof v === 'number') {
-    return excelSerialToKey(v);
-  }
-  if (v instanceof Date) {
-    // Only reached if a library handed us a Date object directly. Use LOCAL
-    // getters here because that's how such objects are normally constructed
-    // (new Date(y, m, d) uses local time), so this stays consistent with the
-    // calendar date the source actually intended.
-    return v.getFullYear() + '-' + pad2(v.getMonth() + 1) + '-' + pad2(v.getDate());
-  }
-  if (typeof v === 'string') {
+function parseDateVal(v){
+  if(v instanceof Date) return v;
+  if(typeof v === 'number') return excelSerialToDate(v);
+  if(typeof v === 'string'){
     const s = v.trim();
-    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);       // YYYY-MM-DD
-    if (m) return m[1] + '-' + pad2(m[2]) + '-' + pad2(m[3]);
-    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/); // DD-MM-YYYY or DD/MM/YYYY
-    if (m) return m[3] + '-' + pad2(m[1]) + '-' + pad2(m[2]);
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if(m) return new Date(Date.UTC(+m[3], +m[2]-1, +m[1]));
     const d = new Date(s);
-    if (!isNaN(d)) return cellDateToKey(d);
+    if(!isNaN(d)) return d;
   }
   return null;
 }
 
-// Build a UTC-based Date purely for sorting/iterating/exporting, from a
-// 'YYYY-MM-DD' key. Always read back with getUTC* to match.
-function keyToUTCDate(key) {
-  const [y, m, d] = key.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d));
+function isoDate(d){
+  return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
 }
 
-async function readWorkbook(file) {
-  const buf = await file.arrayBuffer();
-  // Deliberately NOT using cellDates:true — we read the raw Excel serial
-  // number ourselves via excelSerialToKey() to avoid any local-timezone
-  // conversion that a JS Date object would introduce.
-  return XLSX.read(buf, { type: 'array' });
+function readSheetAsRows(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      try{
+        const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+        resolve(rows);
+      }catch(err){ reject(err); }
+    };
+    reader.onerror = ()=>reject(new Error('Could not read file'));
+    reader.readAsArrayBuffer(file);
+  });
 }
 
-async function readCSVRows(file) {
-  const text = await file.text();
-  const parsed = Papa.parse(text, { header: false, skipEmptyLines: true });
-  return parsed.data;
+function parseMis(rows){
+  const header = rows[0].map(h=>norm(h));
+  const dateIdx = header.findIndex(h=>h.includes('date'));
+  const collectorIdx = header.findIndex(h=>h.includes('collector'));
+  const slIdx = header.findIndex(h=>h==='slno'||h.includes('sl'));
+  const amountIdxs = [];
+  header.forEach((h,i)=>{
+    if(i===dateIdx || i===collectorIdx || i===slIdx) return;
+    if(!h) return;
+    amountIdxs.push(i);
+  });
+  const out = [];
+  for(let r=1;r<rows.length;r++){
+    const row = rows[r];
+    if(!row || row.every(c=>c===null||c==='')) continue;
+    const date = parseDateVal(row[dateIdx]);
+    if(!date) continue;
+    let total = 0;
+    amountIdxs.forEach(i=>{
+      const v = parseFloat(row[i]);
+      if(!isNaN(v)) total += v;
+    });
+    const collectorId = String(row[collectorIdx]??'').trim();
+    out.push({date, collectorId, total});
+  }
+  return out;
 }
 
-function getTargetIds() {
-  return document.getElementById('collectorIds').value
-    .split(',').map(s => s.trim()).filter(Boolean);
+function parseHeadwise(rows){
+  const header = rows[0].map(h=>norm(h));
+  const billHeadIdx = header.findIndex(h=>h.includes('billhead'));
+  const amountIdx = header.findIndex(h=>h==='amount');
+  const dateIdx = header.findIndex(h=>h.includes('paymentdate') || (h.includes('date') && !h.includes('bill')));
+  const out = [];
+  for(let r=1;r<rows.length;r++){
+    const row = rows[r];
+    if(!row || row.every(c=>c===null||c==='')) continue;
+    const date = parseDateVal(row[dateIdx]);
+    if(!date) continue;
+    const billHead = String(row[billHeadIdx]??'').trim();
+    const amount = parseFloat(row[amountIdx]) || 0;
+    out.push({date, billHead, amount});
+  }
+  return out;
 }
 
-async function processFiles() {
-  setStatus('msg', '');
-  const dailyFile = document.getElementById('file-daily').files[0];
-  const headwiseFile = document.getElementById('file-headwise').files[0];
-  const spFiles = document.getElementById('file-smartprepaid').files;
+function setDropzone(dz, fileLabelEl, filename){
+  dz.classList.add('filled');
+  fileLabelEl.textContent = filename;
+}
 
-  if (!dailyFile || !headwiseFile || spFiles.length === 0) {
-    setStatus('msg', 'Please upload all three: Daily Collection CSV, HeadWise report, and at least one Smart Prepaid report.', true);
-    return;
+function detectMonthYear(rows){
+  if(!rows || !rows.length) return null;
+  const counts = {};
+  rows.forEach(r=>{
+    const key = r.date.getUTCFullYear()+'-'+(r.date.getUTCMonth()+1);
+    counts[key] = (counts[key]||0)+1;
+  });
+  let best=null, bestCount=-1;
+  Object.entries(counts).forEach(([k,c])=>{ if(c>bestCount){best=k; bestCount=c;} });
+  if(!best) return null;
+  const [y,m] = best.split('-').map(Number);
+  return {year:y, month:m};
+}
+
+document.getElementById('fileMis').addEventListener('change', async e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  document.getElementById('statusMsg').textContent = 'Reading MIS Daily Collection…';
+  document.getElementById('statusMsg').className = 'status';
+  try{
+    const rows = await readSheetAsRows(f);
+    misRows = parseMis(rows);
+    setDropzone(document.getElementById('dzMis'), document.getElementById('dzMisFile'), f.name+' — '+misRows.length+' rows');
+    const my = detectMonthYear(misRows);
+    if(my){ fMonth.value = my.month; document.getElementById('fYear').value = my.year; }
+    checkReady();
+    document.getElementById('statusMsg').textContent = '';
+  }catch(err){
+    document.getElementById('statusMsg').textContent = 'Could not read MIS file: '+err.message;
+    document.getElementById('statusMsg').className = 'status err';
+  }
+});
+
+document.getElementById('fileHw').addEventListener('change', async e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  document.getElementById('statusMsg').textContent = 'Reading Headwise Collection Report…';
+  document.getElementById('statusMsg').className = 'status';
+  try{
+    const rows = await readSheetAsRows(f);
+    hwRows = parseHeadwise(rows);
+    setDropzone(document.getElementById('dzHw'), document.getElementById('dzHwFile'), f.name+' — '+hwRows.length+' rows');
+    if(!misRows){
+      const my = detectMonthYear(hwRows);
+      if(my){ fMonth.value = my.month; document.getElementById('fYear').value = my.year; }
+    }
+    checkReady();
+    document.getElementById('statusMsg').textContent = '';
+  }catch(err){
+    document.getElementById('statusMsg').textContent = 'Could not read Headwise file: '+err.message;
+    document.getElementById('statusMsg').className = 'status err';
+  }
+});
+
+function checkReady(){
+  document.getElementById('btnGenerate').disabled = !(misRows && hwRows);
+}
+
+function inr(n){ return new Intl.NumberFormat('en-IN').format(Math.round(n)); }
+
+function computeStatement(){
+  const month = parseInt(fMonth.value,10);
+  const year = parseInt(document.getElementById('fYear').value,10);
+  const subdiv = document.getElementById('fSubdiv').value.trim();
+  const opening = parseFloat(document.getElementById('fOpening').value) || 0;
+  const cashIds = document.getElementById('fCashIds').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const onlineId = document.getElementById('fOnlineId').value.trim();
+  const disconnHeads = document.getElementById('fDisconnHeads').value.split(',').map(s=>s.trim()).filter(Boolean);
+
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+  const misMonth = misRows.filter(r=>r.date.getUTCFullYear()===year && r.date.getUTCMonth()+1===month);
+  const hwMonth = hwRows.filter(r=>r.date.getUTCFullYear()===year && r.date.getUTCMonth()+1===month && disconnHeads.includes(r.billHead));
+
+  const dayRows = [];
+  for(let d=1; d<=daysInMonth; d++){
+    const dt = new Date(Date.UTC(year, month-1, d));
+    const key = isoDate(dt);
+    const misDay = misMonth.filter(r=>isoDate(r.date)===key);
+    const misTotal = misDay.reduce((s,r)=>s+r.total,0);
+    const cashMis = misDay.filter(r=>cashIds.includes(r.collectorId)).reduce((s,r)=>s+r.total,0);
+    const onlineMis = misDay.filter(r=>r.collectorId.toUpperCase()===onlineId.toUpperCase()).reduce((s,r)=>s+r.total,0);
+    const easypay = misTotal - cashMis - onlineMis;
+    const hwDay = hwMonth.filter(r=>isoDate(r.date)===key).reduce((s,r)=>s+r.amount,0);
+    const cash = cashMis + hwDay;
+    dayRows.push({sl:d, date:dt, cash, online:onlineMis, easypay});
   }
 
-  const targetIds = new Set(getTargetIds());
-  if (targetIds.size === 0) {
-    setStatus('msg', 'Please enter at least one Collector ID.', true);
-    return;
-  }
+  const totalCash = dayRows.reduce((s,r)=>s+r.cash,0);
+  const totalOnline = dayRows.reduce((s,r)=>s+r.online,0);
+  const totalEasypay = dayRows.reduce((s,r)=>s+r.easypay,0);
+  const misAllTotal = misMonth.reduce((s,r)=>s+r.total,0);
+  const hwAllTotal = hwMonth.reduce((s,r)=>s+r.amount,0);
+  const totalCollection = misAllTotal + hwAllTotal;
+  const totalDeposit = totalCash + totalOnline + totalEasypay;
+  const closing = opening + totalCollection - totalDeposit;
 
-  document.getElementById('processBtn').disabled = true;
-  setStatus('msg', 'Processing...');
-
-  // Reset raw capture for this run.
-  rawSourceData = { daily: null, headwise: null, smartprepaid: [] };
-
-  try {
-    const energy = {};       // date -> {cash, cheque}
-    const assess = {};       // date -> amount
-    const rcdcDaily = {};    // date -> amount
-    const rawTotal = {};     // date -> amount — EVERYTHING for the target IDs (both combined), no
-                              // bill-type filtering at all: every row, every amount column from Daily
-                              // Collection (Energy, Assessment, RC/DC, New Service Connection, Testing,
-                              // Change Process, Meter Seal, everything) + every payment mode from Smart Prepaid.
-
-    // ---- 1. Daily Collection CSV ----
-    const dailyRows = await readCSVRows(dailyFile);
-    rawSourceData.daily = { name: dailyFile.name, rows: dailyRows };
-    let dHeaderSkipped = false;
-    for (const r of dailyRows) {
-      if (!dHeaderSkipped) { dHeaderSkipped = true; continue; }
-      if (r.length < 10) continue;
-      const dateStr = (r[1] || '').trim();
-      const cash = parseFloat(r[2]) || 0;
-      const cheque = parseFloat(r[3]) || 0;
-      const rtgs = parseFloat(r[4]) || 0;
-      const govtAdj = parseFloat(r[5]) || 0;
-      const boardAdj = parseFloat(r[6]) || 0;
-      const towerAdj = parseFloat(r[7]) || 0;
-      const cid = (r[8] || '').trim();
-      const billType = (r[9] || '').trim();
-      if (!targetIds.has(cid)) continue;
-      const key = cellDateToKey(dateStr);
-      if (!key) continue;
-      // Unfiltered: every row for this collector counts here, regardless of bill type.
-      rawTotal[key] = (rawTotal[key] || 0) + cash + cheque + rtgs + govtAdj + boardAdj + towerAdj;
-      if (billType === 'ENERGY BILL') {
-        energy[key] = energy[key] || { cash: 0, cheque: 0 };
-        energy[key].cash += cash;
-        energy[key].cheque += cheque;
-      } else if (billType === 'FINAL ASSESSMENT BILL') {
-        assess[key] = (assess[key] || 0) + cash + cheque;
-      } else if (billType === 'DISCONNECTION RECONNECTION CHARGE') {
-        rcdcDaily[key] = (rcdcDaily[key] || 0) + cash + cheque;
-      }
-    }
-    setStatus('daily', `${dailyRows.length - 1} rows read`);
-
-    // ---- 2. HeadWise Collection Report ----
-    const meterCost = {};      // date -> amount
-    const rcdcHeadwise = {};   // date -> amount
-    const miscHeadwise = {};   // date -> amount
-    const excludedHeadwise = {}; // date -> amount (Temporary Energy Charge + Meter Cost of ₹2,400/₹6,000, kept aside)
-    const RCDC_HEADS = new Set(['DISCONNECTION RECONNECTION CHARGE', 'NEW SERVICE CONNECTION DISCONNECTION CHARGE']);
-
-    const hwWb = await readWorkbook(headwiseFile);
-    let hwRowCount = 0;
-    const hwSheetsRaw = [];
-    for (const sheetName of hwWb.SheetNames) {
-      const sheet = hwWb.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
-      hwSheetsRaw.push({ name: sheetName, rows: rows });
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length < 10) continue;
-        const billHead = row[6] ? String(row[6]).trim() : null;
-        const amount = typeof row[7] === 'number' ? row[7] : parseFloat(row[7]);
-        const key = cellDateToKey(row[8]);
-        const receivedBy = row[9] ? String(row[9]).trim() : null;
-        if (!billHead || isNaN(amount) || !key || !receivedBy) continue;
-        if (!targetIds.has(receivedBy)) continue;
-        hwRowCount++;
-        if (billHead === 'TEMPORARY SERVICE CONNECTION ENERGY CHARGE') {
-          excludedHeadwise[key] = (excludedHeadwise[key] || 0) + amount;
-          continue;
-        }
-        if (billHead.includes('METER COST')) {
-          if (amount === 2400 || amount === 6000) {
-            excludedHeadwise[key] = (excludedHeadwise[key] || 0) + amount;
-            continue;
-          }
-          meterCost[key] = (meterCost[key] || 0) + amount;
-        } else if (RCDC_HEADS.has(billHead)) {
-          rcdcHeadwise[key] = (rcdcHeadwise[key] || 0) + amount;
-        } else {
-          miscHeadwise[key] = (miscHeadwise[key] || 0) + amount;
-        }
-      }
-    }
-    rawSourceData.headwise = { name: headwiseFile.name, sheets: hwSheetsRaw };
-    setStatus('headwise', `${hwRowCount} matching rows`);
-
-    // ---- 3. Smart Prepaid Recharge Report(s) ----
-    const spCash = {};
-    const spCheque = {};
-    let spRowCount = 0;
-    for (const file of spFiles) {
-      const wb = await readWorkbook(file);
-      const spSheetsRaw = [];
-      for (const sheetName of wb.SheetNames) {
-        const sheet = wb.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
-        spSheetsRaw.push({ name: sheetName, rows: rows });
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row || row.length < 11) continue;
-          const mode = row[2] ? String(row[2]).trim() : null;
-          const amount = typeof row[3] === 'number' ? row[3] : parseFloat(row[3]);
-          const key = cellDateToKey(row[4]);
-          const cid = row[10] ? String(row[10]).trim() : null;
-          if (!mode || isNaN(amount) || !key || !cid) continue;
-          if (!targetIds.has(cid)) continue;
-          spRowCount++;
-          // Unfiltered: every payment mode counts towards the raw total (cash, cheque, rtgs, adjustments — everything).
-          rawTotal[key] = (rawTotal[key] || 0) + amount;
-          if (mode === 'cash' || mode === 'cash_os') {
-            spCash[key] = (spCash[key] || 0) + amount;
-          } else if (mode === 'cheque') {
-            spCheque[key] = (spCheque[key] || 0) + amount;
-          }
-        }
-      }
-      rawSourceData.smartprepaid.push({ name: file.name, sheets: spSheetsRaw });
-    }
-    setStatus('smartprepaid', `${spRowCount} matching rows across ${spFiles.length} file(s)`);
-
-    // ---- Build date range (min to max across all data) ----
-    const allKeys = new Set([
-      ...Object.keys(energy), ...Object.keys(assess), ...Object.keys(rcdcDaily),
-      ...Object.keys(meterCost), ...Object.keys(rcdcHeadwise), ...Object.keys(miscHeadwise),
-      ...Object.keys(spCash), ...Object.keys(spCheque), ...Object.keys(excludedHeadwise),
-      ...Object.keys(rawTotal)
-    ]);
-    if (allKeys.size === 0) {
-      setStatus('msg', 'No matching data found for the given Collector IDs. Please check the IDs and files.', true);
-      document.getElementById('processBtn').disabled = false;
-      return;
-    }
-    const sortedKeys = [...allKeys].sort();
-    const minDate = keyToUTCDate(sortedKeys[0]);
-    const maxDate = keyToUTCDate(sortedKeys[sortedKeys.length - 1]);
-
-    // Outlier check: a single mistyped date (e.g. Excel silently reinterprets
-    // "02-08-2026" typed into a date-formatted cell as 08-Feb instead of
-    // 02-Aug) creates a date isolated far from the rest of the data, which
-    // then drags the whole report's date range open with a long run of
-    // empty/zero days. Flag the largest gap between consecutive dates so the
-    // person can go fix the source file instead of quietly getting a
-    // stretched-out report.
-    let maxGapDays = 0, gapAt = -1;
-    for (let i = 1; i < sortedKeys.length; i++) {
-      const gap = Math.round((keyToUTCDate(sortedKeys[i]) - keyToUTCDate(sortedKeys[i - 1])) / 86400000);
-      if (gap > maxGapDays) { maxGapDays = gap; gapAt = i; }
-    }
-    let outlierWarning = '';
-    if (maxGapDays > 20 && sortedKeys.length > 1) {
-      const before = sortedKeys.slice(0, gapAt);
-      const after = sortedKeys.slice(gapAt);
-      const outliers = before.length <= after.length ? before : after;
-      outlierWarning = ` ⚠️ Warning: ${outliers.length} date(s) — ${outliers.slice(0, 3).join(', ')}${outliers.length > 3 ? '…' : ''} — sit ${maxGapDays} days away from the rest of the data. This usually means a date got typed wrong in one of your source files (Excel often silently reads "DD-MM-YYYY" as "MM-DD-YYYY" when you type into an already date-formatted cell). Please check and fix, then re-upload.`;
-    }
-
-    const rows = [];
-    let cur = new Date(minDate.getTime());
-    const endD = new Date(maxDate.getTime());
-    while (cur <= endD) {
-      const key = cur.getUTCFullYear() + '-' + pad2(cur.getUTCMonth() + 1) + '-' + pad2(cur.getUTCDate());
-      const eCash = (energy[key] && energy[key].cash) || 0;
-      const eCheque = (energy[key] && energy[key].cheque) || 0;
-      const spC = spCash[key] || 0;
-      const spCh = spCheque[key] || 0;
-      const a = assess[key] || 0;
-      const rcdc = (rcdcDaily[key] || 0) + (rcdcHeadwise[key] || 0);
-      const mc = meterCost[key] || 0;
-      const misc = miscHeadwise[key] || 0;
-      const total = eCash + eCheque + spC + spCh + a + rcdc + mc + misc;
-      const revAc = eCash + eCheque + a + spC + spCh;
-      const rcdcAc = rcdc;
-      const dwAc = mc + misc;
-      const excluded = excludedHeadwise[key] || 0;
-      const rawColl = rawTotal[key] || 0;
-      const balance = rawColl - (total + excluded);
-      rows.push({ date: new Date(cur), eCash, eCheque, spC, spCh, a, rcdc, mc, misc, total, revAc, rcdcAc, dwAc, excluded, rawColl, balance });
-      cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
-    }
-
-    computedData = { rows, raw: rawSourceData };
-    renderResults(rows);
-    setStatus('msg', `Done — ${rows.length} days processed.${outlierWarning}`, !!outlierWarning);
-  } catch (err) {
-    console.error(err);
-    setStatus('msg', 'Error while processing files: ' + err.message, true);
-  } finally {
-    document.getElementById('processBtn').disabled = false;
-  }
+  return {
+    month, year, subdiv, opening, cashIds, onlineId, disconnHeads, daysInMonth,
+    dayRows, totalCash, totalOnline, totalEasypay, totalCollection, totalDeposit, closing,
+    misMonthAll: misRows.filter(r=>true), // keep full raw for the workbook's data sheet
+    hwMonthAll: hwRows.filter(r=>true)
+  };
 }
 
-function fmt(n) {
-  return Math.round(n || 0).toLocaleString('en-IN');
-}
+function renderResults(res){
+  document.getElementById('resultsArea').style.display = 'block';
+  document.getElementById('statOpening').textContent = '₹'+inr(res.opening);
+  document.getElementById('statCollection').textContent = '₹'+inr(res.totalCollection);
+  document.getElementById('statDeposit').textContent = '₹'+inr(res.totalDeposit);
+  document.getElementById('statClosing').textContent = '₹'+inr(res.closing);
 
-function renderResults(rows) {
-  document.getElementById('idListLabel').textContent = getTargetIds().join(', ');
+  document.getElementById('rOpening').textContent = '₹'+inr(res.opening);
+  document.getElementById('rCollection').textContent = '₹'+inr(res.totalCollection);
+  document.getElementById('rDeposit').textContent = '₹'+inr(res.totalDeposit);
+  document.getElementById('rClosing').textContent = '₹'+inr(res.closing);
 
-  const tbody = document.getElementById('tableBody');
+  const tbody = document.getElementById('tblBody');
   tbody.innerHTML = '';
-  const g = { eCash:0, eCheque:0, spC:0, spCh:0, a:0, rcdc:0, mc:0, misc:0, total:0, revAc:0, rcdcAc:0, dwAc:0, excluded:0, rawColl:0, balance:0 };
-
-  for (const r of rows) {
-    for (const k in g) g[k] += (r[k] || 0);
+  res.dayRows.forEach(r=>{
     const tr = document.createElement('tr');
-    const dstr = r.date.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'2-digit', timeZone: 'UTC' });
-    tr.innerHTML = `
-      <td>${dstr}</td>
-      <td class="num">${fmt(r.eCash)}</td>
-      <td class="num">${fmt(r.eCheque)}</td>
-      <td class="num">${fmt(r.spC)}</td>
-      <td class="num">${fmt(r.spCh)}</td>
-      <td class="num">${fmt(r.a)}</td>
-      <td class="num">${fmt(r.rcdc)}</td>
-      <td class="num">${fmt(r.mc)}</td>
-      <td class="num">${fmt(r.misc)}</td>
-      <td class="num total-col">${fmt(r.total)}</td>
-      <td class="num">${fmt(r.revAc)}</td>
-      <td class="num">${fmt(r.rcdcAc)}</td>
-      <td class="num">${fmt(r.dwAc)}</td>
-      <td class="num total-col">${fmt(r.total)}</td>
-      <td class="num">${fmt(r.excluded)}</td>
-      <td class="num total-col">${fmt(r.rawColl)}</td>
-      <td class="num">${fmt(r.balance)}</td>`;
+    const isZero = r.cash===0 && r.online===0 && r.easypay===0;
+    if(isZero) tr.className='zero';
+    const dstr = String(r.sl).padStart(2,'0')+'-'+monthNames[res.month-1].slice(0,3)+'-'+res.year;
+    tr.innerHTML = `<td>${r.sl}</td><td>${dstr}</td><td>${inr(r.cash)}</td><td>${inr(r.online)}</td><td>${inr(r.easypay)}</td>`;
     tbody.appendChild(tr);
-  }
+  });
+  document.getElementById('footCash').textContent = inr(res.totalCash);
+  document.getElementById('footOnline').textContent = inr(res.totalOnline);
+  document.getElementById('footEasypay').textContent = inr(res.totalEasypay);
 
-  const totalTr = document.createElement('tr');
-  totalTr.className = 'grand-total';
-  totalTr.innerHTML = `
-    <td>TOTAL</td>
-    <td class="num">${fmt(g.eCash)}</td>
-    <td class="num">${fmt(g.eCheque)}</td>
-    <td class="num">${fmt(g.spC)}</td>
-    <td class="num">${fmt(g.spCh)}</td>
-    <td class="num">${fmt(g.a)}</td>
-    <td class="num">${fmt(g.rcdc)}</td>
-    <td class="num">${fmt(g.mc)}</td>
-    <td class="num">${fmt(g.misc)}</td>
-    <td class="num total-col">${fmt(g.total)}</td>
-    <td class="num">${fmt(g.revAc)}</td>
-    <td class="num">${fmt(g.rcdcAc)}</td>
-    <td class="num">${fmt(g.dwAc)}</td>
-    <td class="num total-col">${fmt(g.total)}</td>
-    <td class="num">${fmt(g.excluded)}</td>
-    <td class="num total-col">${fmt(g.rawColl)}</td>
-    <td class="num">${fmt(g.balance)}</td>`;
-  tbody.appendChild(totalTr);
-
-  const metaCards = document.getElementById('metaCards');
-  metaCards.innerHTML = `
-    <div class="card"><div class="label">Energy Bill</div><div class="value">₹${fmt(g.eCash+g.eCheque)}</div></div>
-    <div class="card"><div class="label">Smart Prepaid</div><div class="value">₹${fmt(g.spC+g.spCh)}</div></div>
-    <div class="card"><div class="label">Assessment</div><div class="value">₹${fmt(g.a)}</div></div>
-    <div class="card"><div class="label">RC/DC</div><div class="value">₹${fmt(g.rcdc)}</div></div>
-    <div class="card"><div class="label">Meter Cost</div><div class="value">₹${fmt(g.mc)}</div></div>
-    <div class="card"><div class="label">Grand Total</div><div class="value">₹${fmt(g.total)}</div></div>
-    <div class="card"><div class="label">Total Collection (ID-wise)</div><div class="value">₹${fmt(g.rawColl)}</div></div>
-    <div class="card"><div class="label">Balance</div><div class="value">₹${fmt(g.balance)}</div></div>`;
-
-  document.getElementById('resultsSection').style.display = 'block';
+  document.getElementById('resultsArea').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
-// ---- Helpers for dumping raw uploaded files as extra sheets ----
-
-// Excel forbids : \ / ? * [ ] in sheet names and caps them at 31 chars.
-// This also de-dupes names (e.g. two source files that share a tab name).
-function safeSheetName(base, usedNames) {
-  let name = String(base).replace(/[:\\\/\?\*\[\]]/g, '_').trim();
-  if (!name) name = 'Sheet';
-  if (name.length > 31) name = name.substring(0, 31);
-  let final = name;
-  let i = 2;
-  while (usedNames.has(final)) {
-    const suffix = '_' + i;
-    final = name.substring(0, Math.max(1, 31 - suffix.length)) + suffix;
-    i++;
+document.getElementById('btnGenerate').addEventListener('click', ()=>{
+  try{
+    lastResult = computeStatement();
+    renderResults(lastResult);
+    document.getElementById('statusMsg').textContent = 'Statement generated.';
+    document.getElementById('statusMsg').className = 'status ok';
+  }catch(err){
+    document.getElementById('statusMsg').textContent = 'Could not generate statement: '+err.message;
+    document.getElementById('statusMsg').className = 'status err';
   }
-  usedNames.add(final);
-  return final;
+});
+
+function colLetter(n){
+  let s='';
+  while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); }
+  return s;
 }
 
-// Lets the browser breathe between heavy synchronous chunks of work, so the
-// tab doesn't look frozen and the "Building file..." label actually gets a
-// chance to paint before the next chunk starts.
-function uiYield() {
-  return new Promise(resolve => setTimeout(resolve, 0));
-}
+function buildWorkbook(res){
+  const wb = XLSX.utils.book_new();
 
-// Dumps a 2D array of raw rows (as read from the source file, untouched)
-// into a new worksheet, bolding the first row as a header and auto-sizing
-// columns. Used purely so the person can see/verify the original uploaded
-// data inside the same workbook as the computed report.
-//
-// PERFORMANCE NOTE: for large uploads (thousands of rows) this used to walk
-// every inserted cell through ExcelJS's Row/Cell objects twice — once to add
-// each row individually via addRow(), and again via col.eachCell() to work
-// out column widths. That per-cell object overhead, multiplied across every
-// sheet, was the main cause of the long freeze before download started.
-// Both of those are now done against plain JS arrays instead (fast, native
-// V8 loops) and the rows are inserted into the sheet in one bulk addRows()
-// call rather than one addRow() call per row.
-function addRawDataSheet(wb, name, rows, usedNames) {
-  if (!rows || rows.length === 0) return;
-  const sheetName = safeSheetName(name, usedNames);
-  const ws = wb.addWorksheet(sheetName);
-
-  // Normalize once, as plain arrays — no ExcelJS objects touched yet.
-  const cleanRows = rows.map(row =>
-    Array.isArray(row) ? row.map(cell => (cell === undefined ? null : cell)) : [row]
-  );
-
-  // Column widths from the plain array (cheap), before anything is inserted.
-  let maxCols = 0;
-  for (let i = 0; i < cleanRows.length; i++) {
-    if (cleanRows[i].length > maxCols) maxCols = cleanRows[i].length;
+  // ---------- MIS Data sheet ----------
+  const misHeader = ['SL No','Date','Amount','Collector Id'];
+  const misAOA = [misHeader];
+  res.misMonthAll.forEach((r,i)=>{ misAOA.push([i+1, r.date, r.total, r.collectorId]); });
+  const misWs = XLSX.utils.aoa_to_sheet(misAOA);
+  misWs['!cols'] = [{wch:7},{wch:12},{wch:12},{wch:16}];
+  for(let r=2;r<=misAOA.length;r++){
+    const dcell = misWs['B'+r];
+    if(dcell) dcell.z = 'dd-mmm-yy';
   }
-  const widths = new Array(maxCols).fill(10);
-  for (let i = 0; i < cleanRows.length; i++) {
-    const row = cleanRows[i];
-    for (let c = 0; c < row.length; c++) {
-      const v = row[c];
-      const len = (v === null || v === undefined) ? 0 : String(v).length;
-      if (len > widths[c]) widths[c] = len;
+  const lastMisRow = misAOA.length;
+
+  // ---------- Headwise Data sheet ----------
+  const hwHeader = ['Bill Head','Amount','Payment Date'];
+  const hwAOA = [hwHeader];
+  res.hwMonthAll.forEach(r=>{ hwAOA.push([r.billHead, r.amount, r.date]); });
+  const hwWs = XLSX.utils.aoa_to_sheet(hwAOA);
+  hwWs['!cols'] = [{wch:42},{wch:10},{wch:12}];
+  for(let r=2;r<=hwAOA.length;r++){
+    const dcell = hwWs['C'+r];
+    if(dcell) dcell.z = 'dd-mmm-yy';
+  }
+  const lastHwRow = hwAOA.length;
+
+  // ---------- Sheet1 (statement) ----------
+  const ws = {};
+  const merges = [];
+  const setCell = (addr, v, opts)=>{
+    const cell = {v};
+    if(typeof v === 'number') cell.t = 'n';
+    else if(v instanceof Date){ cell.t='d'; cell.z = opts && opts.z ? opts.z : 'dd-mmm-yy'; }
+    else cell.t = 's';
+    if(opts){
+      if(opts.f) cell.f = opts.f;
+      if(opts.z && cell.t!=='d') cell.z = opts.z;
     }
-  }
-  widths.forEach((w, idx) => { ws.getColumn(idx + 1).width = Math.min(w + 2, 40); });
+    ws[addr] = cell;
+  };
 
-  // One bulk insert instead of thousands of individual addRow() calls.
-  ws.addRows(cleanRows);
+  setCell('A1', 'STATEMENT ON RCDC DEPOSIT TO "APDCL SUBSIDIARY A/C", BED');
+  merges.push({s:{r:0,c:0}, e:{r:0,c:5}});
+  setCell('A2', 'FOR THE MONTH OF '+monthNames[res.month-1]+'-'+res.year);
+  merges.push({s:{r:1,c:0}, e:{r:1,c:5}});
+  setCell('A3', 'NAME OF SUB-DIVISION: '+res.subdiv);
+  merges.push({s:{r:2,c:0}, e:{r:2,c:5}});
 
-  // Style just the header row (row 1).
-  ws.getRow(1).eachCell({ includeEmpty: true }, cell => {
-    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1C2733' } };
+  setCell('C4', 'CASH DEPOSIT \nTO BANK');
+  setCell('D4', 'ONLINE');
+  setCell('E4', 'EASY PAY');
+  setCell('F4', 'REMARKS');
+  setCell('A5', 'SL NO');
+  setCell('B5', 'DATE');
+  setCell('C5', 'AMOUNT');
+  setCell('D5', 'AMOUNT');
+  setCell('E5', 'AMOUNT');
+
+  const cashIdList = res.cashIds;
+  const disconnList = res.disconnHeads;
+  const startRow = 6;
+
+  res.dayRows.forEach((r, idx)=>{
+    const row = startRow + idx;
+    const b = 'B'+row;
+    setCell('A'+row, r.sl);
+    setCell(b, r.date);
+
+    const cashTerms = cashIdList.map(id=>
+      `SUMIFS('MIS Data'!$C$2:$C$${lastMisRow},'MIS Data'!$B$2:$B$${lastMisRow},${b},'MIS Data'!$D$2:$D$${lastMisRow},"${id}")`
+    ).concat(disconnList.map(head=>
+      `SUMIFS('Headwise Data'!$B$2:$B$${lastHwRow},'Headwise Data'!$C$2:$C$${lastHwRow},${b},'Headwise Data'!$A$2:$A$${lastHwRow},"${head}")`
+    ));
+    setCell('C'+row, r.cash, {f: cashTerms.join('+'), z:'0;[Red]0'});
+
+    const onlineTerm = `SUMIFS('MIS Data'!$C$2:$C$${lastMisRow},'MIS Data'!$B$2:$B$${lastMisRow},${b},'MIS Data'!$D$2:$D$${lastMisRow},"${res.onlineId}")`;
+    setCell('D'+row, r.online, {f: onlineTerm, z:'0;[Red]0'});
+
+    const totalTerm = `SUMIFS('MIS Data'!$C$2:$C$${lastMisRow},'MIS Data'!$B$2:$B$${lastMisRow},${b})`;
+    const subTerms = cashIdList.map(id=>
+      `SUMIFS('MIS Data'!$C$2:$C$${lastMisRow},'MIS Data'!$B$2:$B$${lastMisRow},${b},'MIS Data'!$D$2:$D$${lastMisRow},"${id}")`
+    );
+    subTerms.push(onlineTerm);
+    setCell('E'+row, r.easypay, {f: totalTerm+subTerms.map(t=>'-'+t).join(''), z:'0;[Red]0'});
   });
 
-  ws.views = [{ state: 'frozen', ySplit: 1 }];
+  const totalRow = startRow + res.dayRows.length;
+  setCell('A'+totalRow, 'TOTAL');
+  setCell('C'+totalRow, res.totalCash, {f:`SUM(C${startRow}:C${totalRow-1})`, z:'0.00'});
+  setCell('D'+totalRow, res.totalOnline, {f:`SUM(D${startRow}:D${totalRow-1})`, z:'0.00'});
+  setCell('E'+totalRow, res.totalEasypay, {f:`SUM(E${startRow}:E${totalRow-1})`, z:'0.00'});
+
+  const sumRow1 = totalRow + 6;
+  const sumRow2 = sumRow1 + 1;
+  const sumRow3 = sumRow1 + 2;
+  const sumRow4 = sumRow1 + 3;
+
+  setCell('F'+sumRow1, '1. Opening Balance (RCDC) :-');
+  merges.push({s:{r:sumRow1-1,c:5}, e:{r:sumRow1-1,c:7}});
+  setCell('I'+sumRow1, res.opening);
+
+  setCell('F'+sumRow2, '2. Total Collection :-');
+  merges.push({s:{r:sumRow2-1,c:5}, e:{r:sumRow2-1,c:7}});
+  const collectionTerms = [`SUM('MIS Data'!$C$2:$C$${lastMisRow})`]
+    .concat(disconnList.map(head=>`SUMIF('Headwise Data'!$A$2:$A$${lastHwRow},"${head}",'Headwise Data'!$B$2:$B$${lastHwRow})`));
+  setCell('I'+sumRow2, res.totalCollection, {f: collectionTerms.join('+'), z:'0.00'});
+
+  setCell('F'+sumRow3, '3. Total Deposit :- ');
+  merges.push({s:{r:sumRow3-1,c:5}, e:{r:sumRow3-1,c:7}});
+  setCell('I'+sumRow3, res.totalDeposit, {f:`C${totalRow}+D${totalRow}+E${totalRow}`, z:'0.00'});
+
+  setCell('F'+sumRow4, '4. Closing Balance as per Cash Book:-');
+  merges.push({s:{r:sumRow4-1,c:5}, e:{r:sumRow4-1,c:7}});
+  setCell('I'+sumRow4, res.closing, {f:`I${sumRow1}+I${sumRow2}-I${sumRow3}`, z:'0.00'});
+
+  ws['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:sumRow4, c:8}});
+  ws['!merges'] = merges;
+  ws['!cols'] = [{wch:9},{wch:13},{wch:20},{wch:13},{wch:13},{wch:28},{wch:9},{wch:9},{wch:13}];
+  ws['!rows'] = []; ws['!rows'][3] = {hpt:30};
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  XLSX.utils.book_append_sheet(wb, misWs, 'MIS Data');
+  XLSX.utils.book_append_sheet(wb, hwWs, 'Headwise Data');
+  return wb;
 }
 
-async function downloadExcel() {
-  if (!computedData) return;
-  const rows = computedData.rows;
-  const btn = document.querySelector('.btn-row .btn.secondary');
-  if (btn) { btn.disabled = true; btn.textContent = 'Building file...'; }
-  await uiYield(); // let the button repaint before the heavy work below starts
+document.getElementById('btnDownload').addEventListener('click', ()=>{
+  if(!lastResult) return;
+  const wb = buildWorkbook(lastResult);
+  const fname = `RCDC_DEPOSIT_STATEMENT_${monthNames[lastResult.month-1]}-${lastResult.year}.xlsx`;
+  XLSX.writeFile(wb, fname);
+});
 
-  try {
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Collection Report');
-    // Indian digit grouping (lakh/crore) needs a magnitude-aware conditional
-    // format — a plain "#,##,##0" doesn't scale correctly once a value
-    // crosses into lakhs in most Excel versions, so we branch by size.
-    const INR_FMT = '[>9999999]##\\,##\\,##\\,##0;[>99999]##\\,##\\,##0;##,##0';
-    const totalCols = 17; // A..N (14) + Temporary (O) + Total Collection ID-wise (P) + Balance (Q)
-
-    ws.columns = [
-      { width: 12 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 },
-      { width: 11 }, { width: 9 },  { width: 11 }, { width: 9 },  { width: 12 },
-      { width: 11 }, { width: 11 }, { width: 10 }, { width: 12 }, { width: 13 },
-      { width: 16 }, { width: 12 },
-    ];
-
-    const thinBorder = {
-      top: { style: 'thin', color: { argb: 'FFB0B7BF' } },
-      left: { style: 'thin', color: { argb: 'FFB0B7BF' } },
-      bottom: { style: 'thin', color: { argb: 'FFB0B7BF' } },
-      right: { style: 'thin', color: { argb: 'FFB0B7BF' } },
-    };
-
-    // ---- Header rows (1-3) ----
-    ws.mergeCells('A1:A3');
-    ws.mergeCells('B1:J1');
-    ws.mergeCells('K1:N1');
-    ws.mergeCells('O1:O3');
-    ws.mergeCells('P1:P3');
-    ws.mergeCells('Q1:Q3');
-    ws.mergeCells('B2:C2');
-    ws.mergeCells('D2:E2');
-    ws.mergeCells('F2:F3');
-    ws.mergeCells('G2:G3');
-    ws.mergeCells('H2:H3');
-    ws.mergeCells('I2:I3');
-    ws.mergeCells('J2:J3');
-    ws.mergeCells('K2:K3');
-    ws.mergeCells('L2:L3');
-    ws.mergeCells('M2:M3');
-    ws.mergeCells('N2:N3');
-
-    ws.getCell('A1').value = 'DATE';
-    ws.getCell('B1').value = 'Collection';
-    ws.getCell('K1').value = 'Deposite';
-    ws.getCell('O1').value = 'Temporary';
-    ws.getCell('P1').value = 'Total Collection (ID-wise)';
-    ws.getCell('Q1').value = 'Balance';
-    ws.getCell('B2').value = 'ENERGY BILL';
-    ws.getCell('D2').value = 'Smart Prepaid';
-    ws.getCell('F2').value = 'Assessment';
-    ws.getCell('G2').value = 'RC/DC';
-    ws.getCell('H2').value = 'Meter Cost';
-    ws.getCell('I2').value = 'Misc';
-    ws.getCell('J2').value = 'Total';
-    ws.getCell('K2').value = 'Rev Ac';
-    ws.getCell('L2').value = 'RC/DC AC';
-    ws.getCell('M2').value = 'DW AC';
-    ws.getCell('N2').value = 'Total';
-    ws.getCell('B3').value = 'cash';
-    ws.getCell('C3').value = 'Cheque';
-    ws.getCell('D3').value = 'cash';
-    ws.getCell('E3').value = 'Cheque';
-
-    for (let r = 1; r <= 3; r++) {
-      const row = ws.getRow(r);
-      row.height = 20;
-      for (let c = 1; c <= totalCols; c++) {
-        const cell = row.getCell(c);
-        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c > 15 ? 'FF203A5C' : (c === 15 ? 'FF5A3B1C' : (c >= 11 ? 'FF1F3B2C' : 'FF1C2733')) } };
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        cell.border = thinBorder;
-      }
+// drag & drop wiring
+['dzMis','dzHw'].forEach(id=>{
+  const dz = document.getElementById(id);
+  const input = dz.querySelector('input');
+  dz.addEventListener('click', e=>{ if(e.target!==input) input.click(); });
+  dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('drag'); });
+  dz.addEventListener('dragleave', ()=>dz.classList.remove('drag'));
+  dz.addEventListener('drop', e=>{
+    e.preventDefault(); dz.classList.remove('drag');
+    if(e.dataTransfer.files.length){
+      input.files = e.dataTransfer.files;
+      input.dispatchEvent(new Event('change'));
     }
-
-    // ---- Data rows ----
-    let r = 4;
-    const firstDataRow = 4;
-    for (const row of rows) {
-      const y = row.date.getUTCFullYear(), m = row.date.getUTCMonth() + 1, d = row.date.getUTCDate();
-      const dateStr = pad2(d) + '-' + pad2(m) + '-' + y; // DD-MM-YYYY, plain text (avoids any date-serial/timezone issues)
-      // Raw values for every column except the two Total columns (J, N),
-      // which are written as live SUM formulas instead of static numbers.
-      const rawVals = [row.eCash, row.eCheque, row.spC, row.spCh, row.a, row.rcdc, row.mc, row.misc, null, row.revAc, row.rcdcAc, row.dwAc, null];
-
-      const excelRow = ws.getRow(r);
-      excelRow.getCell(1).value = dateStr;
-      for (let i = 0; i < rawVals.length; i++) {
-        const col = 2 + i; // column B=2 .. N=14
-        if (col === 10) {
-          excelRow.getCell(col).value = { formula: `SUM(B${r}:I${r})` };
-        } else if (col === 14) {
-          excelRow.getCell(col).value = { formula: `SUM(K${r}:M${r})` };
-        } else {
-          excelRow.getCell(col).value = Math.round(rawVals[i] || 0);
-        }
-      }
-      excelRow.getCell(15).value = Math.round(row.excluded || 0);
-      excelRow.getCell(16).value = Math.round(row.rawColl || 0);
-      excelRow.getCell(17).value = { formula: `P${r}-(J${r}+O${r})` };
-
-      for (let c = 1; c <= totalCols; c++) {
-        const cell = excelRow.getCell(c);
-        cell.border = thinBorder;
-        if (c === 1) {
-          cell.alignment = { horizontal: 'center' };
-          cell.font = { color: { argb: 'FF444444' } };
-        } else {
-          cell.numFmt = INR_FMT;
-          cell.alignment = { horizontal: 'right' };
-          if (c === 10 || c === 14 || c === 16) cell.font = { bold: true, color: { argb: 'FF1F5FBF' } };
-          if (c === 15) cell.font = { italic: true, color: { argb: 'FF8A5A2B' } };
-          if (c === 17) cell.font = { bold: true, color: { argb: 'FFB03A2E' } };
-        }
-        if (r % 2 === 0) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F6FA' } };
-        }
-      }
-      r++;
-    }
-    const lastDataRow = r - 1;
-
-    // ---- Total row (also live SUM formulas, one per column) ----
-    const totalRow = ws.getRow(r);
-    totalRow.getCell(1).value = 'TOTAL';
-    ['B','C','D','E','F','G','H','I','K','L','M','O','P','Q'].forEach(col => {
-      totalRow.getCell(col).value = { formula: `SUM(${col}${firstDataRow}:${col}${lastDataRow})` };
-    });
-    totalRow.getCell('J').value = { formula: `SUM(B${r}:I${r})` };
-    totalRow.getCell('N').value = { formula: `SUM(K${r}:M${r})` };
-
-    for (let c = 1; c <= totalCols; c++) {
-      const cell = totalRow.getCell(c);
-      cell.font = { bold: true, color: { argb: c === 15 ? 'FF6B3E12' : 'FF0B3D19' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c === 15 ? 'FFF3E0C8' : 'FFCFEFD7' } };
-      cell.border = {
-        top: { style: 'medium', color: { argb: 'FF3FB950' } },
-        left: { style: 'thin', color: { argb: 'FFB0B7BF' } },
-        bottom: { style: 'thin', color: { argb: 'FFB0B7BF' } },
-        right: { style: 'thin', color: { argb: 'FFB0B7BF' } },
-      };
-      if (c > 1) { cell.numFmt = INR_FMT; cell.alignment = { horizontal: 'right' }; }
-      else cell.alignment = { horizontal: 'center' };
-    }
-
-    ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3, topLeftCell: 'A4', activeCell: 'A4' }];
-
-    await uiYield();
-
-    // ---- Append every uploaded source file as its own sheet(s), verbatim ----
-    // Yielding to the browser between sheets keeps the tab responsive on
-    // large uploads instead of one long unbroken freeze.
-    const usedSheetNames = new Set(['Collection Report']);
-    if (computedData.raw) {
-      if (computedData.raw.daily) {
-        if (btn) btn.textContent = 'Adding Daily Collection...';
-        await uiYield();
-        addRawDataSheet(wb, 'Daily Collection', computedData.raw.daily.rows, usedSheetNames);
-        await uiYield();
-      }
-      if (computedData.raw.headwise) {
-        if (btn) btn.textContent = 'Adding HeadWise...';
-        await uiYield();
-        for (const s of computedData.raw.headwise.sheets) {
-          const label = computedData.raw.headwise.sheets.length > 1 ? `HeadWise_${s.name}` : 'HeadWise';
-          addRawDataSheet(wb, label, s.rows, usedSheetNames);
-          await uiYield();
-        }
-      }
-      if (computedData.raw.smartprepaid && computedData.raw.smartprepaid.length) {
-        if (btn) btn.textContent = 'Adding Smart Prepaid...';
-        await uiYield();
-        // Combine every uploaded Smart Prepaid file's sheet(s) into ONE sheet
-        // (all of them share the same column layout), rather than a separate
-        // tab per file/sheet. We only drop a sheet's first row when it truly
-        // matches the very first header row we saw (cell-by-cell, case/space
-        // insensitive) — NOT just because it's "the first row of any sheet
-        // after the first one". Some sheets start straight with real data
-        // (e.g. a consumer number), and blindly slicing row 1 off every sheet
-        // was silently dropping that data.
-        let combinedSpRows = [];
-        let referenceHeader = null;
-        for (const f of computedData.raw.smartprepaid) {
-          for (const s of f.sheets) {
-            if (!s.rows || s.rows.length === 0) continue;
-            if (referenceHeader === null) {
-              referenceHeader = s.rows[0];
-              combinedSpRows = combinedSpRows.concat(s.rows);
-            } else {
-              const firstRow = s.rows[0];
-              const looksLikeHeader = Array.isArray(firstRow) &&
-                Array.isArray(referenceHeader) &&
-                firstRow.length === referenceHeader.length &&
-                referenceHeader.every((val, idx) =>
-                  String(val ?? '').trim().toLowerCase() === String(firstRow[idx] ?? '').trim().toLowerCase()
-                );
-              combinedSpRows = combinedSpRows.concat(looksLikeHeader ? s.rows.slice(1) : s.rows);
-            }
-          }
-          await uiYield();
-        }
-        addRawDataSheet(wb, 'SP1', combinedSpRows, usedSheetNames);
-        await uiYield();
-      }
-    }
-
-    wb.creator = 'Collection Report Builder';
-
-    if (btn) btn.textContent = 'Writing Excel file...';
-    await uiYield();
-
-    const buf = await wb.xlsx.writeBuffer();
-    const blob = new Blob([buf], { type: 'application/octet-stream' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    const firstDate = rows[0].date;
-    const monthLabel = MONTH_NAMES[firstDate.getUTCMonth()] + ' ' + firstDate.getUTCFullYear();
-    link.download = `Collection Report - ${monthLabel}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  } catch (err) {
-    console.error(err);
-    alert('Excel banate waqt error aayi: ' + err.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '⬇ Download Collection Report'; }
-  }
-}
-
-['file-daily','file-headwise','file-smartprepaid'].forEach(id => {
-  document.getElementById(id).addEventListener('change', function() {
-    const slotId = id.replace('file-', 'slot-');
-    const slot = document.getElementById(slotId);
-    if (this.files.length > 0) slot.classList.add('filled');
-    else slot.classList.remove('filled');
   });
 });
 </script>
