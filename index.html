@@ -798,17 +798,29 @@ async function downloadExcel() {
         await uiYield();
         // Combine every uploaded Smart Prepaid file's sheet(s) into ONE sheet
         // (all of them share the same column layout), rather than a separate
-        // tab per file/sheet. Header row is kept only once, from the very
-        // first sheet encountered; every subsequent sheet's header row is
-        // dropped so the data stacks cleanly underneath it.
+        // tab per file/sheet. We only drop a sheet's first row when it truly
+        // matches the very first header row we saw (cell-by-cell, case/space
+        // insensitive) — NOT just because it's "the first row of any sheet
+        // after the first one". Some sheets start straight with real data
+        // (e.g. a consumer number), and blindly slicing row 1 off every sheet
+        // was silently dropping that data.
         let combinedSpRows = [];
+        let referenceHeader = null;
         for (const f of computedData.raw.smartprepaid) {
           for (const s of f.sheets) {
             if (!s.rows || s.rows.length === 0) continue;
-            if (combinedSpRows.length === 0) {
+            if (referenceHeader === null) {
+              referenceHeader = s.rows[0];
               combinedSpRows = combinedSpRows.concat(s.rows);
             } else {
-              combinedSpRows = combinedSpRows.concat(s.rows.slice(1));
+              const firstRow = s.rows[0];
+              const looksLikeHeader = Array.isArray(firstRow) &&
+                Array.isArray(referenceHeader) &&
+                firstRow.length === referenceHeader.length &&
+                referenceHeader.every((val, idx) =>
+                  String(val ?? '').trim().toLowerCase() === String(firstRow[idx] ?? '').trim().toLowerCase()
+                );
+              combinedSpRows = combinedSpRows.concat(looksLikeHeader ? s.rows.slice(1) : s.rows);
             }
           }
           await uiYield();
