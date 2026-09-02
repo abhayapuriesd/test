@@ -90,21 +90,21 @@
     <h2>2. Upload files for this month</h2>
     <div class="upload-grid">
       <div class="upload-slot" id="slot-daily">
-        <div class="title">Daily Collection</div>
-        <div class="desc">MIS_Daily_Collection... — Energy Bill, Assessment Bill, RC/DC. Any format accepted: .csv, .xlsx, .xls, .xlsm, .xlsb.</div>
-        <input type="file" id="file-daily" accept=".csv,.xlsx,.xls,.xlsm,.xlsb,.ods,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <div class="title">Daily Collection (CSV)</div>
+        <div class="desc">MIS_Daily_Collection...csv — Energy Bill, Assessment Bill, RC/DC</div>
+        <input type="file" id="file-daily" accept=".csv">
         <div class="status" id="status-daily"></div>
       </div>
       <div class="upload-slot" id="slot-headwise">
         <div class="title">HeadWise Collection Report</div>
-        <div class="desc">headwiseCollectionReport... — Meter Cost, RC/DC, Misc (temporary energy charge and meter-cost entries of ₹2,400/₹6,000 auto-excluded). Any Excel/CSV format accepted.</div>
-        <input type="file" id="file-headwise" accept=".xls,.xlsx,.xlsm,.xlsb,.csv,.ods,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <div class="desc">headwiseCollectionReport...xls — Meter Cost, RC/DC, Misc (temporary energy charge and meter-cost entries of ₹2,400/₹6,000 auto-excluded)</div>
+        <input type="file" id="file-headwise" accept=".xls,.xlsx">
         <div class="status" id="status-headwise"></div>
       </div>
       <div class="upload-slot" id="slot-smartprepaid">
         <div class="title">Smart Prepaid Recharge Report(s)</div>
-        <div class="desc">smartPrepaidRechargeReport... — you can select multiple files at once (hold Ctrl/Cmd). Any Excel/CSV format accepted.</div>
-        <input type="file" id="file-smartprepaid" accept=".xls,.xlsx,.xlsm,.xlsb,.csv,.ods,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple>
+        <div class="desc">smartPrepaidRechargeReport...xls — you can select multiple files at once (hold Ctrl/Cmd)</div>
+        <input type="file" id="file-smartprepaid" accept=".xls,.xlsx" multiple>
         <div class="status" id="status-smartprepaid"></div>
       </div>
     </div>
@@ -156,7 +156,8 @@
     <div style="color:var(--muted); font-size:0.78rem; margin-top:6px;">
       "Temporary" = Temporary Energy Charge + Meter Cost entries of exactly ₹2,400 / ₹6,000 from the HeadWise report — kept aside, not part of any Collection/Deposite total.<br>
       "Total Collection (ID-wise)" = everything for Collector IDs <span id="idListLabel"></span> combined — every bill type from Daily Collection (Energy Bill, Assessment, RC/DC, New Service Connection, Testing, Change Process, Meter Seal, all of it) plus every payment mode from Smart Prepaid. Nothing excluded; not split by category.<br>
-      "Balance" = Total Collection (ID-wise) − (Collection Total + Temporary).
+      "Balance" = Total Collection (ID-wise) − (Collection Total + Temporary).<br>
+      The downloaded Excel file also includes every uploaded source file as its own sheet(s) (Daily Collection, HeadWise, and each Smart Prepaid file), exactly as uploaded, alongside the computed "Collection Report" sheet.
     </div>
 
 
@@ -170,7 +171,8 @@
 </div>
 
 <script>
-let computedData = null; // { rows: [...], dates: [...] }
+let computedData = null; // { rows: [...], raw: {...} }
+let rawSourceData = { daily: null, headwise: null, smartprepaid: [] }; // captured verbatim for export as extra sheets
 
 function setStatus(id, msg, isError) {
   const el = document.getElementById('status-' + id);
@@ -246,41 +248,6 @@ async function readCSVRows(file) {
   return parsed.data;
 }
 
-// Returns the lowercase file extension (without the dot), or '' if none.
-function getExt(file) {
-  const name = file.name || '';
-  const dot = name.lastIndexOf('.');
-  return dot === -1 ? '' : name.slice(dot + 1).toLowerCase();
-}
-
-// Generic tabular-data reader: works no matter which spreadsheet format the
-// user hands it (.csv, .xlsx, .xls, .xlsm, .xlsb, .ods, ...). Returns an
-// array-of-arrays (header row included), same shape either parser produces,
-// so every downstream loop in this file can stay format-agnostic.
-async function readTabularRows(file) {
-  const ext = getExt(file);
-  if (ext === 'csv' || file.type === 'text/csv') {
-    return await readCSVRows(file);
-  }
-  // Anything else (xlsx/xls/xlsm/xlsb/ods/or an unrecognised extension) is
-  // handed to SheetJS, which auto-detects the actual format from the file
-  // bytes rather than trusting the extension.
-  try {
-    const wb = await readWorkbook(file);
-    const sheetName = wb.SheetNames[0];
-    const sheet = wb.Sheets[sheetName];
-    return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
-  } catch (err) {
-    // Last-resort fallback: maybe it really was delimited text with an
-    // unusual extension — try CSV parsing before giving up.
-    try {
-      return await readCSVRows(file);
-    } catch (err2) {
-      throw err;
-    }
-  }
-}
-
 function getTargetIds() {
   return document.getElementById('collectorIds').value
     .split(',').map(s => s.trim()).filter(Boolean);
@@ -293,7 +260,7 @@ async function processFiles() {
   const spFiles = document.getElementById('file-smartprepaid').files;
 
   if (!dailyFile || !headwiseFile || spFiles.length === 0) {
-    setStatus('msg', 'Please upload all three: Daily Collection file, HeadWise report, and at least one Smart Prepaid report.', true);
+    setStatus('msg', 'Please upload all three: Daily Collection CSV, HeadWise report, and at least one Smart Prepaid report.', true);
     return;
   }
 
@@ -306,6 +273,9 @@ async function processFiles() {
   document.getElementById('processBtn').disabled = true;
   setStatus('msg', 'Processing...');
 
+  // Reset raw capture for this run.
+  rawSourceData = { daily: null, headwise: null, smartprepaid: [] };
+
   try {
     const energy = {};       // date -> {cash, cheque}
     const assess = {};       // date -> amount
@@ -315,21 +285,22 @@ async function processFiles() {
                               // Collection (Energy, Assessment, RC/DC, New Service Connection, Testing,
                               // Change Process, Meter Seal, everything) + every payment mode from Smart Prepaid.
 
-    // ---- 1. Daily Collection (any format: csv/xlsx/xls/xlsm/xlsb) ----
-    const dailyRows = await readTabularRows(dailyFile);
+    // ---- 1. Daily Collection CSV ----
+    const dailyRows = await readCSVRows(dailyFile);
+    rawSourceData.daily = { name: dailyFile.name, rows: dailyRows };
     let dHeaderSkipped = false;
     for (const r of dailyRows) {
       if (!dHeaderSkipped) { dHeaderSkipped = true; continue; }
-      if (!r || r.length < 10) continue;
-      const dateStr = r[1] === null || r[1] === undefined ? '' : (typeof r[1] === 'string' ? r[1].trim() : r[1]);
+      if (r.length < 10) continue;
+      const dateStr = (r[1] || '').trim();
       const cash = parseFloat(r[2]) || 0;
       const cheque = parseFloat(r[3]) || 0;
       const rtgs = parseFloat(r[4]) || 0;
       const govtAdj = parseFloat(r[5]) || 0;
       const boardAdj = parseFloat(r[6]) || 0;
       const towerAdj = parseFloat(r[7]) || 0;
-      const cid = (r[8] === null || r[8] === undefined ? '' : String(r[8])).trim();
-      const billType = (r[9] === null || r[9] === undefined ? '' : String(r[9])).trim();
+      const cid = (r[8] || '').trim();
+      const billType = (r[9] || '').trim();
       if (!targetIds.has(cid)) continue;
       const key = cellDateToKey(dateStr);
       if (!key) continue;
@@ -347,53 +318,81 @@ async function processFiles() {
     }
     setStatus('daily', `${dailyRows.length - 1} rows read`);
 
-    // ---- 2. HeadWise Collection Report (any format) ----
+    // ---- 2. HeadWise Collection Report ----
     const meterCost = {};      // date -> amount
     const rcdcHeadwise = {};   // date -> amount
     const miscHeadwise = {};   // date -> amount
     const excludedHeadwise = {}; // date -> amount (Temporary Energy Charge + Meter Cost of ₹2,400/₹6,000, kept aside)
     const RCDC_HEADS = new Set(['DISCONNECTION RECONNECTION CHARGE', 'NEW SERVICE CONNECTION DISCONNECTION CHARGE']);
 
+    const hwWb = await readWorkbook(headwiseFile);
     let hwRowCount = 0;
-    const hwExt = getExt(headwiseFile);
-    if (hwExt === 'csv' || headwiseFile.type === 'text/csv') {
-      const rows = await readCSVRows(headwiseFile);
+    const hwSheetsRaw = [];
+    for (const sheetName of hwWb.SheetNames) {
+      const sheet = hwWb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+      hwSheetsRaw.push({ name: sheetName, rows: rows });
       for (let i = 1; i < rows.length; i++) {
-        hwRowCount += processHeadwiseRow(rows[i], targetIds, meterCost, rcdcHeadwise, miscHeadwise, excludedHeadwise, RCDC_HEADS);
-      }
-    } else {
-      const hwWb = await readWorkbook(headwiseFile);
-      for (const sheetName of hwWb.SheetNames) {
-        const sheet = hwWb.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
-        for (let i = 1; i < rows.length; i++) {
-          hwRowCount += processHeadwiseRow(rows[i], targetIds, meterCost, rcdcHeadwise, miscHeadwise, excludedHeadwise, RCDC_HEADS);
+        const row = rows[i];
+        if (!row || row.length < 10) continue;
+        const billHead = row[6] ? String(row[6]).trim() : null;
+        const amount = typeof row[7] === 'number' ? row[7] : parseFloat(row[7]);
+        const key = cellDateToKey(row[8]);
+        const receivedBy = row[9] ? String(row[9]).trim() : null;
+        if (!billHead || isNaN(amount) || !key || !receivedBy) continue;
+        if (!targetIds.has(receivedBy)) continue;
+        hwRowCount++;
+        if (billHead === 'TEMPORARY SERVICE CONNECTION ENERGY CHARGE') {
+          excludedHeadwise[key] = (excludedHeadwise[key] || 0) + amount;
+          continue;
+        }
+        if (billHead.includes('METER COST')) {
+          if (amount === 2400 || amount === 6000) {
+            excludedHeadwise[key] = (excludedHeadwise[key] || 0) + amount;
+            continue;
+          }
+          meterCost[key] = (meterCost[key] || 0) + amount;
+        } else if (RCDC_HEADS.has(billHead)) {
+          rcdcHeadwise[key] = (rcdcHeadwise[key] || 0) + amount;
+        } else {
+          miscHeadwise[key] = (miscHeadwise[key] || 0) + amount;
         }
       }
     }
+    rawSourceData.headwise = { name: headwiseFile.name, sheets: hwSheetsRaw };
     setStatus('headwise', `${hwRowCount} matching rows`);
 
-    // ---- 3. Smart Prepaid Recharge Report(s) (any format, mixed formats OK) ----
+    // ---- 3. Smart Prepaid Recharge Report(s) ----
     const spCash = {};
     const spCheque = {};
     let spRowCount = 0;
     for (const file of spFiles) {
-      const ext = getExt(file);
-      if (ext === 'csv' || file.type === 'text/csv') {
-        const rows = await readCSVRows(file);
+      const wb = await readWorkbook(file);
+      const spSheetsRaw = [];
+      for (const sheetName of wb.SheetNames) {
+        const sheet = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+        spSheetsRaw.push({ name: sheetName, rows: rows });
         for (let i = 1; i < rows.length; i++) {
-          spRowCount += processSmartPrepaidRow(rows[i], targetIds, spCash, spCheque, rawTotal);
-        }
-      } else {
-        const wb = await readWorkbook(file);
-        for (const sheetName of wb.SheetNames) {
-          const sheet = wb.Sheets[sheetName];
-          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
-          for (let i = 1; i < rows.length; i++) {
-            spRowCount += processSmartPrepaidRow(rows[i], targetIds, spCash, spCheque, rawTotal);
+          const row = rows[i];
+          if (!row || row.length < 11) continue;
+          const mode = row[2] ? String(row[2]).trim() : null;
+          const amount = typeof row[3] === 'number' ? row[3] : parseFloat(row[3]);
+          const key = cellDateToKey(row[4]);
+          const cid = row[10] ? String(row[10]).trim() : null;
+          if (!mode || isNaN(amount) || !key || !cid) continue;
+          if (!targetIds.has(cid)) continue;
+          spRowCount++;
+          // Unfiltered: every payment mode counts towards the raw total (cash, cheque, rtgs, adjustments — everything).
+          rawTotal[key] = (rawTotal[key] || 0) + amount;
+          if (mode === 'cash' || mode === 'cash_os') {
+            spCash[key] = (spCash[key] || 0) + amount;
+          } else if (mode === 'cheque') {
+            spCheque[key] = (spCheque[key] || 0) + amount;
           }
         }
       }
+      rawSourceData.smartprepaid.push({ name: file.name, sheets: spSheetsRaw });
     }
     setStatus('smartprepaid', `${spRowCount} matching rows across ${spFiles.length} file(s)`);
 
@@ -457,7 +456,7 @@ async function processFiles() {
       cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
     }
 
-    computedData = { rows };
+    computedData = { rows, raw: rawSourceData };
     renderResults(rows);
     setStatus('msg', `Done — ${rows.length} days processed.${outlierWarning}`, !!outlierWarning);
   } catch (err) {
@@ -466,54 +465,6 @@ async function processFiles() {
   } finally {
     document.getElementById('processBtn').disabled = false;
   }
-}
-
-// Shared row-processing logic for the HeadWise report, usable whether the
-// rows came from CSV parsing or from a SheetJS workbook sheet.
-function processHeadwiseRow(row, targetIds, meterCost, rcdcHeadwise, miscHeadwise, excludedHeadwise, RCDC_HEADS) {
-  if (!row || row.length < 10) return 0;
-  const billHead = row[6] === null || row[6] === undefined ? null : String(row[6]).trim();
-  const amount = typeof row[7] === 'number' ? row[7] : parseFloat(row[7]);
-  const key = cellDateToKey(row[8]);
-  const receivedBy = row[9] === null || row[9] === undefined ? null : String(row[9]).trim();
-  if (!billHead || isNaN(amount) || !key || !receivedBy) return 0;
-  if (!targetIds.has(receivedBy)) return 0;
-  if (billHead === 'TEMPORARY SERVICE CONNECTION ENERGY CHARGE') {
-    excludedHeadwise[key] = (excludedHeadwise[key] || 0) + amount;
-    return 1;
-  }
-  if (billHead.includes('METER COST')) {
-    if (amount === 2400 || amount === 6000) {
-      excludedHeadwise[key] = (excludedHeadwise[key] || 0) + amount;
-      return 1;
-    }
-    meterCost[key] = (meterCost[key] || 0) + amount;
-  } else if (RCDC_HEADS.has(billHead)) {
-    rcdcHeadwise[key] = (rcdcHeadwise[key] || 0) + amount;
-  } else {
-    miscHeadwise[key] = (miscHeadwise[key] || 0) + amount;
-  }
-  return 1;
-}
-
-// Shared row-processing logic for Smart Prepaid reports, usable whether the
-// rows came from CSV parsing or from a SheetJS workbook sheet.
-function processSmartPrepaidRow(row, targetIds, spCash, spCheque, rawTotal) {
-  if (!row || row.length < 11) return 0;
-  const mode = row[2] === null || row[2] === undefined ? null : String(row[2]).trim();
-  const amount = typeof row[3] === 'number' ? row[3] : parseFloat(row[3]);
-  const key = cellDateToKey(row[4]);
-  const cid = row[10] === null || row[10] === undefined ? null : String(row[10]).trim();
-  if (!mode || isNaN(amount) || !key || !cid) return 0;
-  if (!targetIds.has(cid)) return 0;
-  // Unfiltered: every payment mode counts towards the raw total (cash, cheque, rtgs, adjustments — everything).
-  rawTotal[key] = (rawTotal[key] || 0) + amount;
-  if (mode === 'cash' || mode === 'cash_os') {
-    spCash[key] = (spCash[key] || 0) + amount;
-  } else if (mode === 'cheque') {
-    spCheque[key] = (spCheque[key] || 0) + amount;
-  }
-  return 1;
 }
 
 function fmt(n) {
@@ -586,6 +537,54 @@ function renderResults(rows) {
     <div class="card"><div class="label">Balance</div><div class="value">₹${fmt(g.balance)}</div></div>`;
 
   document.getElementById('resultsSection').style.display = 'block';
+}
+
+// ---- Helpers for dumping raw uploaded files as extra sheets ----
+
+// Excel forbids : \ / ? * [ ] in sheet names and caps them at 31 chars.
+// This also de-dupes names (e.g. two source files that share a tab name).
+function safeSheetName(base, usedNames) {
+  let name = String(base).replace(/[:\\\/\?\*\[\]]/g, '_').trim();
+  if (!name) name = 'Sheet';
+  if (name.length > 31) name = name.substring(0, 31);
+  let final = name;
+  let i = 2;
+  while (usedNames.has(final)) {
+    const suffix = '_' + i;
+    final = name.substring(0, Math.max(1, 31 - suffix.length)) + suffix;
+    i++;
+  }
+  usedNames.add(final);
+  return final;
+}
+
+// Dumps a 2D array of raw rows (as read from the source file, untouched)
+// into a new worksheet, bolding the first row as a header and auto-sizing
+// columns. Used purely so the person can see/verify the original uploaded
+// data inside the same workbook as the computed report.
+function addRawDataSheet(wb, name, rows, usedNames) {
+  if (!rows || rows.length === 0) return;
+  const sheetName = safeSheetName(name, usedNames);
+  const ws = wb.addWorksheet(sheetName);
+  rows.forEach((row, idx) => {
+    const safeRow = Array.isArray(row) ? row.map(cell => (cell === undefined ? null : cell)) : [row];
+    const excelRow = ws.addRow(safeRow);
+    if (idx === 0) {
+      excelRow.eachCell({ includeEmpty: true }, cell => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1C2733' } };
+      });
+    }
+  });
+  ws.columns.forEach(col => {
+    let maxLen = 10;
+    col.eachCell({ includeEmpty: true }, cell => {
+      const len = cell.value !== null && cell.value !== undefined ? String(cell.value).length : 0;
+      if (len > maxLen) maxLen = len;
+    });
+    col.width = Math.min(maxLen + 2, 40);
+  });
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
 }
 
 async function downloadExcel() {
@@ -741,6 +740,31 @@ async function downloadExcel() {
     }
 
     ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3, topLeftCell: 'A4', activeCell: 'A4' }];
+
+    // ---- Append every uploaded source file as its own sheet(s), verbatim ----
+    const usedSheetNames = new Set(['Collection Report']);
+    if (computedData.raw) {
+      if (computedData.raw.daily) {
+        addRawDataSheet(wb, 'Daily Collection', computedData.raw.daily.rows, usedSheetNames);
+      }
+      if (computedData.raw.headwise) {
+        computedData.raw.headwise.sheets.forEach(s => {
+          const label = computedData.raw.headwise.sheets.length > 1 ? `HeadWise_${s.name}` : 'HeadWise';
+          addRawDataSheet(wb, label, s.rows, usedSheetNames);
+        });
+      }
+      if (computedData.raw.smartprepaid && computedData.raw.smartprepaid.length) {
+        const multiFile = computedData.raw.smartprepaid.length > 1;
+        computedData.raw.smartprepaid.forEach((f, fi) => {
+          const base = f.name.replace(/\.[^.]+$/, '');
+          f.sheets.forEach(s => {
+            const prefix = multiFile ? `SP${fi + 1}_${base}` : 'SmartPrepaid';
+            const label = f.sheets.length > 1 ? `${prefix}_${s.name}` : prefix;
+            addRawDataSheet(wb, label, s.rows, usedSheetNames);
+          });
+        });
+      }
+    }
 
     wb.creator = 'Collection Report Builder';
 
