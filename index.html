@@ -105,7 +105,6 @@
   tbody td:first-child{font-family:'Inter', sans-serif; color:var(--muted); text-align:left; width:44px;}
   tbody td:nth-child(2){font-family:'Inter', sans-serif; text-align:left;}
   tbody tr:nth-child(even){background:#FAFBFC;}
-  tbody tr.zero td{color:#B7BEC8;}
   tfoot td{padding:11px 16px; font-weight:700; font-family:'IBM Plex Mono', monospace; background:#EEF1F6; border-top:2px solid var(--line-strong);}
   tfoot td:first-child, tfoot td:nth-child(2){font-family:'Inter', sans-serif; text-align:left; color:var(--navy-deep);}
 
@@ -473,9 +472,7 @@ function renderResults(res){
   tbody.innerHTML = '';
   res.dayRows.forEach(r=>{
     const tr = document.createElement('tr');
-    const isZero = r.cash===0 && r.online===0 && r.easypay===0;
-    if(isZero) tr.className='zero';
-    const dstr = String(r.sl).padStart(2,'0')+'-'+monthNames[res.month-1].slice(0,3)+'-'+res.year;
+    const dstr = String(r.sl).padStart(2,'0')+'-'+String(res.month).padStart(2,'0')+'-'+res.year;
     tr.innerHTML = `<td>${r.sl}</td><td>${dstr}</td><td>${inr(r.cash)}</td><td>${inr(r.online)}</td><td>${inr(r.easypay)}</td>`;
     tbody.appendChild(tr);
   });
@@ -505,7 +502,6 @@ const NAVY_DEEP = 'FF12233E';
 const BAND = 'FFF4F6F8';
 const TOTAL_FILL = 'FFE9EDF3';
 const CLOSING_FILL = 'FFE7F4EC';
-const MUTED_FONT = 'FFB7BEC8';
 
 function styleRange(ws, r1, c1, r2, c2, fn){
   for(let r=r1;r<=r2;r++){
@@ -581,13 +577,12 @@ async function buildWorkbook(res){
   // ---------- Day rows ----------
   res.dayRows.forEach((r, idx)=>{
     const row = startRow + idx;
-    const isZero = r.online===0 && r.easypay===0;
     const banded = idx % 2 === 1;
 
     const cSl = ws.getCell(row,1); cSl.value = r.sl;
     cSl.alignment = {horizontal:'center'};
     const cDate = ws.getCell(row,2);
-    cDate.value = String(r.sl).padStart(2,'0')+'-'+monthNames[res.month-1].slice(0,3)+'-'+res.year;
+    cDate.value = String(r.sl).padStart(2,'0')+'-'+String(res.month).padStart(2,'0')+'-'+res.year;
     cDate.alignment = {horizontal:'center'};
     const cCash = ws.getCell(row,3); cCash.numFmt = '#,##0.00'; // left blank for manual entry
     const cOnline = ws.getCell(row,4); cOnline.value = r.online; cOnline.numFmt = '#,##0.00';
@@ -596,8 +591,7 @@ async function buildWorkbook(res){
 
     styleRange(ws,row,1,row,6, (c, rr, cc)=>{
       c.border = BORDER_ALL;
-      const grayable = isZero && cc!==3; // Cash Deposit to Bank (col 3) always stays black — it's manually filled in
-      c.font = {name:'Calibri', size:10.5, color:{argb: grayable ? MUTED_FONT : 'FF1F2430'}};
+      c.font = {name:'Calibri', size:10.5, color:{argb:'FF1F2430'}};
       if(cc>=3) c.alignment = {horizontal:'right'};
       if(banded) c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:BAND}};
     });
