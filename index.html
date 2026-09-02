@@ -754,15 +754,23 @@ async function downloadExcel() {
         });
       }
       if (computedData.raw.smartprepaid && computedData.raw.smartprepaid.length) {
-        const multiFile = computedData.raw.smartprepaid.length > 1;
-        computedData.raw.smartprepaid.forEach((f, fi) => {
-          const base = f.name.replace(/\.[^.]+$/, '');
+        // Combine every uploaded Smart Prepaid file's sheet(s) into ONE sheet
+        // (all of them share the same column layout), rather than a separate
+        // tab per file/sheet. Header row is kept only once, from the very
+        // first sheet encountered; every subsequent sheet's header row is
+        // dropped so the data stacks cleanly underneath it.
+        let combinedSpRows = [];
+        computedData.raw.smartprepaid.forEach(f => {
           f.sheets.forEach(s => {
-            const prefix = multiFile ? `SP${fi + 1}_${base}` : 'SmartPrepaid';
-            const label = f.sheets.length > 1 ? `${prefix}_${s.name}` : prefix;
-            addRawDataSheet(wb, label, s.rows, usedSheetNames);
+            if (!s.rows || s.rows.length === 0) return;
+            if (combinedSpRows.length === 0) {
+              combinedSpRows = combinedSpRows.concat(s.rows);
+            } else {
+              combinedSpRows = combinedSpRows.concat(s.rows.slice(1));
+            }
           });
         });
+        addRawDataSheet(wb, 'SP1', combinedSpRows, usedSheetNames);
       }
     }
 
