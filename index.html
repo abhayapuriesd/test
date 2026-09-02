@@ -596,7 +596,8 @@ async function buildWorkbook(res){
 
     styleRange(ws,row,1,row,6, (c, rr, cc)=>{
       c.border = BORDER_ALL;
-      c.font = {name:'Calibri', size:10.5, color:{argb: isZero ? MUTED_FONT : 'FF1F2430'}};
+      const grayable = isZero && cc!==3; // Cash Deposit to Bank (col 3) always stays black
+      c.font = {name:'Calibri', size:10.5, color:{argb: grayable ? MUTED_FONT : 'FF1F2430'}};
       if(cc>=3) c.alignment = {horizontal:'right'};
       if(banded) c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:BAND}};
     });
