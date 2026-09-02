@@ -586,7 +586,8 @@ async function buildWorkbook(res){
 
     const cSl = ws.getCell(row,1); cSl.value = r.sl;
     cSl.alignment = {horizontal:'center'};
-    const cDate = ws.getCell(row,2); cDate.value = r.date; cDate.numFmt = 'dd-mmm-yy';
+    const cDate = ws.getCell(row,2);
+    cDate.value = String(r.sl).padStart(2,'0')+'-'+monthNames[res.month-1].slice(0,3)+'-'+res.year;
     cDate.alignment = {horizontal:'center'};
     const cCash = ws.getCell(row,3); cCash.value = r.cash; cCash.numFmt = '#,##0.00';
     const cOnline = ws.getCell(row,4); cOnline.value = r.online; cOnline.numFmt = '#,##0.00';
@@ -606,9 +607,9 @@ async function buildWorkbook(res){
   ws.mergeCells(totalRow,1,totalRow,2);
   tCell.value = 'TOTAL';
   tCell.alignment = {horizontal:'center', vertical:'middle'};
-  ws.getCell(totalRow,3).value = res.totalCash;
-  ws.getCell(totalRow,4).value = res.totalOnline;
-  ws.getCell(totalRow,5).value = res.totalEasypay;
+  ws.getCell(totalRow,3).value = {formula: `SUM(C${startRow}:C${totalRow-1})`, result: res.totalCash};
+  ws.getCell(totalRow,4).value = {formula: `SUM(D${startRow}:D${totalRow-1})`, result: res.totalOnline};
+  ws.getCell(totalRow,5).value = {formula: `SUM(E${startRow}:E${totalRow-1})`, result: res.totalEasypay};
   [3,4,5].forEach(c=>{ ws.getCell(totalRow,c).numFmt = '#,##0.00'; ws.getCell(totalRow,c).alignment = {horizontal:'right'}; });
   styleRange(ws,totalRow,1,totalRow,6, c=>{
     c.font = {name:'Calibri', size:11, bold:true, color:{argb:NAVY_DEEP}};
@@ -619,12 +620,12 @@ async function buildWorkbook(res){
 
   // ---------- Reconciliation summary ----------
   const summaryDefs = [
-    [sumRow1, '1. Opening Balance (RCDC) :-', res.opening, false],
-    [sumRow2, '2. Total Collection :-', res.totalCollection, false],
-    [sumRow3, '3. Total Deposit :-', res.totalDeposit, false],
-    [sumRow4, '4. Closing Balance as per Cash Book :-', res.closing, true],
+    [sumRow1, '1. Opening Balance (RCDC) :-', res.opening, false, null],
+    [sumRow2, '2. Total Collection :-', res.totalCollection, false, null],
+    [sumRow3, '3. Total Deposit :-', res.totalDeposit, false, `C${totalRow}+D${totalRow}+E${totalRow}`],
+    [sumRow4, '4. Closing Balance as per Cash Book :-', res.closing, true, `F${sumRow1}+F${sumRow2}-F${sumRow3}`],
   ];
-  summaryDefs.forEach(([row, label, value, isFinal])=>{
+  summaryDefs.forEach(([row, label, value, isFinal, formula])=>{
     ws.mergeCells(row,1,row,5);
     const lc = ws.getCell(row,1);
     lc.value = label;
@@ -632,7 +633,7 @@ async function buildWorkbook(res){
     lc.font = {name:'Calibri', size:11, bold:true, color:{argb: isFinal ? 'FF0E7C4F' : 'FF1F2430'}};
 
     const vc = ws.getCell(row,6);
-    vc.value = value;
+    vc.value = formula ? {formula, result: value} : value;
     vc.numFmt = '#,##0.00';
     vc.alignment = {horizontal:'right', vertical:'middle'};
     vc.font = {name:'Calibri', size:11.5, bold:true, color:{argb: isFinal ? 'FF0E7C4F' : NAVY_DEEP}};
