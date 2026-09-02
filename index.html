@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
   :root{
     --navy:#1B3358; --navy-deep:#12233E; --teal:#0E7C7B; --amber:#B7791F;
@@ -240,7 +241,7 @@
       <li><code>Total Collection</code> — all MIS Daily payments for the month plus the matched Headwise charges.</li>
       <li><code>Total Deposit</code> — Cash Deposit to Bank + Online + Easy Pay.</li>
     </ul>
-    The downloaded workbook also includes the raw uploaded data on two extra sheets, with the statement linked to them by formula — so it recalculates in Excel if you edit the raw rows.
+    The downloaded workbook has a single, formatted sheet with the final computed values — no raw data sheets are included.
   </div>
 
   <footer>RCDC Deposit Statement Generator — runs entirely in your browser, no data is uploaded anywhere.</footer>
@@ -452,9 +453,7 @@ function computeStatement(){
 
   return {
     month, year, subdiv, opening, cashIds, onlineId, disconnHeads, daysInMonth,
-    dayRows, totalCash, totalOnline, totalEasypay, totalCollection, totalDeposit, closing,
-    misMonthAll: misRows.filter(r=>true), // keep full raw for the workbook's data sheet
-    hwMonthAll: hwRows.filter(r=>true)
+    dayRows, totalCash, totalOnline, totalEasypay, totalCollection, totalDeposit, closing
   };
 }
 
@@ -499,144 +498,176 @@ document.getElementById('btnGenerate').addEventListener('click', ()=>{
   }
 });
 
-function colLetter(n){
-  let s='';
-  while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); }
-  return s;
+const THIN = {style:'thin', color:{argb:'FF9AA5B1'}};
+const BORDER_ALL = {top:THIN, left:THIN, bottom:THIN, right:THIN};
+const NAVY = 'FF1B3358';
+const NAVY_DEEP = 'FF12233E';
+const BAND = 'FFF4F6F8';
+const TOTAL_FILL = 'FFE9EDF3';
+const CLOSING_FILL = 'FFE7F4EC';
+const MUTED_FONT = 'FFB7BEC8';
+
+function styleRange(ws, r1, c1, r2, c2, fn){
+  for(let r=r1;r<=r2;r++){
+    for(let c=c1;c<=c2;c++){
+      fn(ws.getCell(r,c), r, c);
+    }
+  }
 }
 
-function buildWorkbook(res){
-  const wb = XLSX.utils.book_new();
-
-  // ---------- MIS Data sheet ----------
-  const misHeader = ['SL No','Date','Amount','Collector Id'];
-  const misAOA = [misHeader];
-  res.misMonthAll.forEach((r,i)=>{ misAOA.push([i+1, r.date, r.total, r.collectorId]); });
-  const misWs = XLSX.utils.aoa_to_sheet(misAOA);
-  misWs['!cols'] = [{wch:7},{wch:12},{wch:12},{wch:16}];
-  for(let r=2;r<=misAOA.length;r++){
-    const dcell = misWs['B'+r];
-    if(dcell) dcell.z = 'dd-mmm-yy';
-  }
-  const lastMisRow = misAOA.length;
-
-  // ---------- Headwise Data sheet ----------
-  const hwHeader = ['Bill Head','Amount','Payment Date'];
-  const hwAOA = [hwHeader];
-  res.hwMonthAll.forEach(r=>{ hwAOA.push([r.billHead, r.amount, r.date]); });
-  const hwWs = XLSX.utils.aoa_to_sheet(hwAOA);
-  hwWs['!cols'] = [{wch:42},{wch:10},{wch:12}];
-  for(let r=2;r<=hwAOA.length;r++){
-    const dcell = hwWs['C'+r];
-    if(dcell) dcell.z = 'dd-mmm-yy';
-  }
-  const lastHwRow = hwAOA.length;
-
-  // ---------- Sheet1 (statement) ----------
-  const ws = {};
-  const merges = [];
-  const setCell = (addr, v, opts)=>{
-    const cell = {v};
-    if(typeof v === 'number') cell.t = 'n';
-    else if(v instanceof Date){ cell.t='d'; cell.z = opts && opts.z ? opts.z : 'dd-mmm-yy'; }
-    else cell.t = 's';
-    if(opts){
-      if(opts.f) cell.f = opts.f;
-      if(opts.z && cell.t!=='d') cell.z = opts.z;
-    }
-    ws[addr] = cell;
-  };
-
-  setCell('A1', 'STATEMENT ON RCDC DEPOSIT TO "APDCL SUBSIDIARY A/C", BED');
-  merges.push({s:{r:0,c:0}, e:{r:0,c:5}});
-  setCell('A2', 'FOR THE MONTH OF '+monthNames[res.month-1]+'-'+res.year);
-  merges.push({s:{r:1,c:0}, e:{r:1,c:5}});
-  setCell('A3', 'NAME OF SUB-DIVISION: '+res.subdiv);
-  merges.push({s:{r:2,c:0}, e:{r:2,c:5}});
-
-  setCell('C4', 'CASH DEPOSIT \nTO BANK');
-  setCell('D4', 'ONLINE');
-  setCell('E4', 'EASY PAY');
-  setCell('F4', 'REMARKS');
-  setCell('A5', 'SL NO');
-  setCell('B5', 'DATE');
-  setCell('C5', 'AMOUNT');
-  setCell('D5', 'AMOUNT');
-  setCell('E5', 'AMOUNT');
-
-  const cashIdList = res.cashIds;
-  const disconnList = res.disconnHeads;
-  const startRow = 6;
-
-  res.dayRows.forEach((r, idx)=>{
-    const row = startRow + idx;
-    const b = 'B'+row;
-    setCell('A'+row, r.sl);
-    setCell(b, r.date);
-
-    const cashTerms = cashIdList.map(id=>
-      `SUMIFS('MIS Data'!$C$2:$C$${lastMisRow},'MIS Data'!$B$2:$B$${lastMisRow},${b},'MIS Data'!$D$2:$D$${lastMisRow},"${id}")`
-    ).concat(disconnList.map(head=>
-      `SUMIFS('Headwise Data'!$B$2:$B$${lastHwRow},'Headwise Data'!$C$2:$C$${lastHwRow},${b},'Headwise Data'!$A$2:$A$${lastHwRow},"${head}")`
-    ));
-    setCell('C'+row, r.cash, {f: cashTerms.join('+'), z:'0;[Red]0'});
-
-    const onlineTerm = `SUMIFS('MIS Data'!$C$2:$C$${lastMisRow},'MIS Data'!$B$2:$B$${lastMisRow},${b},'MIS Data'!$D$2:$D$${lastMisRow},"${res.onlineId}")`;
-    setCell('D'+row, r.online, {f: onlineTerm, z:'0;[Red]0'});
-
-    const totalTerm = `SUMIFS('MIS Data'!$C$2:$C$${lastMisRow},'MIS Data'!$B$2:$B$${lastMisRow},${b})`;
-    const subTerms = cashIdList.map(id=>
-      `SUMIFS('MIS Data'!$C$2:$C$${lastMisRow},'MIS Data'!$B$2:$B$${lastMisRow},${b},'MIS Data'!$D$2:$D$${lastMisRow},"${id}")`
-    );
-    subTerms.push(onlineTerm);
-    setCell('E'+row, r.easypay, {f: totalTerm+subTerms.map(t=>'-'+t).join(''), z:'0;[Red]0'});
+async function buildWorkbook(res){
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'RCDC Deposit Statement Generator';
+  wb.created = new Date();
+  const ws = wb.addWorksheet('RCDC Deposit Statement', {
+    views:[{state:'frozen', ySplit:5}]
   });
 
-  const totalRow = startRow + res.dayRows.length;
-  setCell('A'+totalRow, 'TOTAL');
-  setCell('C'+totalRow, res.totalCash, {f:`SUM(C${startRow}:C${totalRow-1})`, z:'0.00'});
-  setCell('D'+totalRow, res.totalOnline, {f:`SUM(D${startRow}:D${totalRow-1})`, z:'0.00'});
-  setCell('E'+totalRow, res.totalEasypay, {f:`SUM(E${startRow}:E${totalRow-1})`, z:'0.00'});
+  ws.columns = [
+    {width:8}, {width:13}, {width:20}, {width:14}, {width:14}, {width:26}, {width:3}, {width:16}, {width:15}
+  ];
 
-  const sumRow1 = totalRow + 6;
+  const startRow = 6;
+  const totalRow = startRow + res.dayRows.length;
+  const sumRow1 = totalRow + 4;
   const sumRow2 = sumRow1 + 1;
   const sumRow3 = sumRow1 + 2;
   const sumRow4 = sumRow1 + 3;
+  const lastRow = sumRow4;
 
-  setCell('F'+sumRow1, '1. Opening Balance (RCDC) :-');
-  merges.push({s:{r:sumRow1-1,c:5}, e:{r:sumRow1-1,c:7}});
-  setCell('I'+sumRow1, res.opening);
+  // ---------- Title block ----------
+  ws.mergeCells(1,1,1,6);
+  const titleCell = ws.getCell(1,1);
+  titleCell.value = 'STATEMENT ON RCDC DEPOSIT TO "APDCL SUBSIDIARY A/C", BED';
+  titleCell.font = {name:'Calibri', size:14, bold:true, color:{argb:'FFFFFFFF'}};
+  titleCell.alignment = {horizontal:'center', vertical:'middle'};
+  ws.getRow(1).height = 28;
+  styleRange(ws,1,1,1,6, c=>{ c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:NAVY}}; });
 
-  setCell('F'+sumRow2, '2. Total Collection :-');
-  merges.push({s:{r:sumRow2-1,c:5}, e:{r:sumRow2-1,c:7}});
-  const collectionTerms = [`SUM('MIS Data'!$C$2:$C$${lastMisRow})`]
-    .concat(disconnList.map(head=>`SUMIF('Headwise Data'!$A$2:$A$${lastHwRow},"${head}",'Headwise Data'!$B$2:$B$${lastHwRow})`));
-  setCell('I'+sumRow2, res.totalCollection, {f: collectionTerms.join('+'), z:'0.00'});
+  ws.mergeCells(2,1,2,6);
+  const monthCell = ws.getCell(2,1);
+  monthCell.value = 'FOR THE MONTH OF '+monthNames[res.month-1].toUpperCase()+' - '+res.year;
+  monthCell.font = {name:'Calibri', size:11.5, bold:true, color:{argb:'FFFFFFFF'}};
+  monthCell.alignment = {horizontal:'center', vertical:'middle'};
+  ws.getRow(2).height = 20;
+  styleRange(ws,2,1,2,6, c=>{ c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:NAVY_DEEP}}; });
 
-  setCell('F'+sumRow3, '3. Total Deposit :- ');
-  merges.push({s:{r:sumRow3-1,c:5}, e:{r:sumRow3-1,c:7}});
-  setCell('I'+sumRow3, res.totalDeposit, {f:`C${totalRow}+D${totalRow}+E${totalRow}`, z:'0.00'});
+  ws.mergeCells(3,1,3,6);
+  const subCell = ws.getCell(3,1);
+  subCell.value = 'NAME OF SUB-DIVISION: '+res.subdiv.toUpperCase();
+  subCell.font = {name:'Calibri', size:11, bold:true, color:{argb:'FFFFFFFF'}};
+  subCell.alignment = {horizontal:'center', vertical:'middle'};
+  ws.getRow(3).height = 19;
+  styleRange(ws,3,1,3,6, c=>{ c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:NAVY_DEEP}}; });
 
-  setCell('F'+sumRow4, '4. Closing Balance as per Cash Book:-');
-  merges.push({s:{r:sumRow4-1,c:5}, e:{r:sumRow4-1,c:7}});
-  setCell('I'+sumRow4, res.closing, {f:`I${sumRow1}+I${sumRow2}-I${sumRow3}`, z:'0.00'});
+  // ---------- Table header ----------
+  const headerDefs = [
+    [1, 'SL NO'], [2, 'DATE'], [3, 'CASH DEPOSIT\nTO BANK'], [4, 'ONLINE'], [5, 'EASY PAY'], [6, 'REMARKS']
+  ];
+  headerDefs.forEach(([col, label])=>{
+    ws.mergeCells(4,col,5,col);
+    const c = ws.getCell(4,col);
+    c.value = label;
+    c.font = {name:'Calibri', size:10.5, bold:true, color:{argb:'FFFFFFFF'}};
+    c.alignment = {horizontal:'center', vertical:'middle', wrapText:true};
+  });
+  ws.getRow(4).height = 30;
+  ws.getRow(5).height = 4;
+  styleRange(ws,4,1,5,6, c=>{
+    c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:NAVY}};
+    c.border = BORDER_ALL;
+  });
 
-  ws['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:sumRow4, c:8}});
-  ws['!merges'] = merges;
-  ws['!cols'] = [{wch:9},{wch:13},{wch:20},{wch:13},{wch:13},{wch:28},{wch:9},{wch:9},{wch:13}];
-  ws['!rows'] = []; ws['!rows'][3] = {hpt:30};
+  // ---------- Day rows ----------
+  res.dayRows.forEach((r, idx)=>{
+    const row = startRow + idx;
+    const isZero = r.cash===0 && r.online===0 && r.easypay===0;
+    const banded = idx % 2 === 1;
 
-  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-  XLSX.utils.book_append_sheet(wb, misWs, 'MIS Data');
-  XLSX.utils.book_append_sheet(wb, hwWs, 'Headwise Data');
+    const cSl = ws.getCell(row,1); cSl.value = r.sl;
+    cSl.alignment = {horizontal:'center'};
+    const cDate = ws.getCell(row,2); cDate.value = r.date; cDate.numFmt = 'dd-mmm-yy';
+    cDate.alignment = {horizontal:'center'};
+    const cCash = ws.getCell(row,3); cCash.value = r.cash; cCash.numFmt = '#,##0.00';
+    const cOnline = ws.getCell(row,4); cOnline.value = r.online; cOnline.numFmt = '#,##0.00';
+    const cEasy = ws.getCell(row,5); cEasy.value = r.easypay; cEasy.numFmt = '#,##0.00';
+    ws.getCell(row,6).value = '';
+
+    styleRange(ws,row,1,row,6, (c, rr, cc)=>{
+      c.border = BORDER_ALL;
+      c.font = {name:'Calibri', size:10.5, color:{argb: isZero ? MUTED_FONT : 'FF1F2430'}};
+      if(cc>=3) c.alignment = {horizontal:'right'};
+      if(banded) c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:BAND}};
+    });
+  });
+
+  // ---------- TOTAL row ----------
+  const tCell = ws.getCell(totalRow,1);
+  ws.mergeCells(totalRow,1,totalRow,2);
+  tCell.value = 'TOTAL';
+  tCell.alignment = {horizontal:'center', vertical:'middle'};
+  ws.getCell(totalRow,3).value = res.totalCash;
+  ws.getCell(totalRow,4).value = res.totalOnline;
+  ws.getCell(totalRow,5).value = res.totalEasypay;
+  [3,4,5].forEach(c=>{ ws.getCell(totalRow,c).numFmt = '#,##0.00'; ws.getCell(totalRow,c).alignment = {horizontal:'right'}; });
+  styleRange(ws,totalRow,1,totalRow,6, c=>{
+    c.font = {name:'Calibri', size:11, bold:true, color:{argb:NAVY_DEEP}};
+    c.border = {top:{style:'medium', color:{argb:NAVY}}, left:THIN, bottom:{style:'medium', color:{argb:NAVY}}, right:THIN};
+    c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:TOTAL_FILL}};
+  });
+  ws.getRow(totalRow).height = 20;
+
+  // ---------- Reconciliation summary ----------
+  const summaryDefs = [
+    [sumRow1, '1. Opening Balance (RCDC) :-', res.opening, false],
+    [sumRow2, '2. Total Collection :-', res.totalCollection, false],
+    [sumRow3, '3. Total Deposit :-', res.totalDeposit, false],
+    [sumRow4, '4. Closing Balance as per Cash Book :-', res.closing, true],
+  ];
+  summaryDefs.forEach(([row, label, value, isFinal])=>{
+    ws.mergeCells(row,1,row,5);
+    const lc = ws.getCell(row,1);
+    lc.value = label;
+    lc.alignment = {horizontal:'right', vertical:'middle'};
+    lc.font = {name:'Calibri', size:11, bold:true, color:{argb: isFinal ? 'FF0E7C4F' : 'FF1F2430'}};
+
+    const vc = ws.getCell(row,6);
+    vc.value = value;
+    vc.numFmt = '#,##0.00';
+    vc.alignment = {horizontal:'right', vertical:'middle'};
+    vc.font = {name:'Calibri', size:11.5, bold:true, color:{argb: isFinal ? 'FF0E7C4F' : NAVY_DEEP}};
+
+    styleRange(ws,row,1,row,6, c=>{
+      c.border = BORDER_ALL;
+      if(isFinal) c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLOSING_FILL}};
+    });
+    ws.getRow(row).height = 20;
+  });
+
   return wb;
 }
 
-document.getElementById('btnDownload').addEventListener('click', ()=>{
+document.getElementById('btnDownload').addEventListener('click', async ()=>{
   if(!lastResult) return;
-  const wb = buildWorkbook(lastResult);
-  const fname = `RCDC_DEPOSIT_STATEMENT_${monthNames[lastResult.month-1]}-${lastResult.year}.xlsx`;
-  XLSX.writeFile(wb, fname);
+  const btn = document.getElementById('btnDownload');
+  const prevText = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Building file…';
+  try{
+    const wb = await buildWorkbook(lastResult);
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const fname = `RCDC_DEPOSIT_STATEMENT_${monthNames[lastResult.month-1]}-${lastResult.year}.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }catch(err){
+    document.getElementById('statusMsg').textContent = 'Could not build Excel file: '+err.message;
+    document.getElementById('statusMsg').className = 'status err';
+  }finally{
+    btn.disabled = false; btn.textContent = prevText;
+  }
 });
 
 // drag & drop wiring
