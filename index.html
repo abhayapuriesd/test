@@ -236,7 +236,7 @@
     How the columns are built:
     <ul>
       <li><code>Online</code> — MIS Daily rows where Collector ID matches the Online ID setting.</li>
-      <li><code>Cash Deposit to Bank</code> — MIS Daily rows for the Cash-deposit collector IDs, plus Headwise rows whose Bill Head matches the configured disconnection/reconnection charges.</li>
+      <li><code>Cash Deposit to Bank</code> — left blank in the downloaded Excel for you to fill in manually (the day-wise, TOTAL, and reconciliation formulas are already linked to it, so totals update as you enter values).</li>
       <li><code>Easy Pay</code> — every other collector ID's MIS Daily collection.</li>
       <li><code>Total Collection</code> — all MIS Daily payments for the month plus the matched Headwise charges.</li>
       <li><code>Total Deposit</code> — Cash Deposit to Bank + Online + Easy Pay.</li>
@@ -581,7 +581,7 @@ async function buildWorkbook(res){
   // ---------- Day rows ----------
   res.dayRows.forEach((r, idx)=>{
     const row = startRow + idx;
-    const isZero = r.cash===0 && r.online===0 && r.easypay===0;
+    const isZero = r.online===0 && r.easypay===0;
     const banded = idx % 2 === 1;
 
     const cSl = ws.getCell(row,1); cSl.value = r.sl;
@@ -589,14 +589,14 @@ async function buildWorkbook(res){
     const cDate = ws.getCell(row,2);
     cDate.value = String(r.sl).padStart(2,'0')+'-'+monthNames[res.month-1].slice(0,3)+'-'+res.year;
     cDate.alignment = {horizontal:'center'};
-    const cCash = ws.getCell(row,3); cCash.value = r.cash; cCash.numFmt = '#,##0.00';
+    const cCash = ws.getCell(row,3); cCash.numFmt = '#,##0.00'; // left blank for manual entry
     const cOnline = ws.getCell(row,4); cOnline.value = r.online; cOnline.numFmt = '#,##0.00';
     const cEasy = ws.getCell(row,5); cEasy.value = r.easypay; cEasy.numFmt = '#,##0.00';
     ws.getCell(row,6).value = '';
 
     styleRange(ws,row,1,row,6, (c, rr, cc)=>{
       c.border = BORDER_ALL;
-      const grayable = isZero && cc!==3; // Cash Deposit to Bank (col 3) always stays black
+      const grayable = isZero && cc!==3; // Cash Deposit to Bank (col 3) always stays black — it's manually filled in
       c.font = {name:'Calibri', size:10.5, color:{argb: grayable ? MUTED_FONT : 'FF1F2430'}};
       if(cc>=3) c.alignment = {horizontal:'right'};
       if(banded) c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:BAND}};
@@ -608,7 +608,7 @@ async function buildWorkbook(res){
   ws.mergeCells(totalRow,1,totalRow,2);
   tCell.value = 'TOTAL';
   tCell.alignment = {horizontal:'center', vertical:'middle'};
-  ws.getCell(totalRow,3).value = {formula: `SUM(C${startRow}:C${totalRow-1})`, result: res.totalCash};
+  ws.getCell(totalRow,3).value = {formula: `SUM(C${startRow}:C${totalRow-1})`, result: 0};
   ws.getCell(totalRow,4).value = {formula: `SUM(D${startRow}:D${totalRow-1})`, result: res.totalOnline};
   ws.getCell(totalRow,5).value = {formula: `SUM(E${startRow}:E${totalRow-1})`, result: res.totalEasypay};
   [3,4,5].forEach(c=>{ ws.getCell(totalRow,c).numFmt = '#,##0.00'; ws.getCell(totalRow,c).alignment = {horizontal:'right'}; });
@@ -620,11 +620,13 @@ async function buildWorkbook(res){
   ws.getRow(totalRow).height = 20;
 
   // ---------- Reconciliation summary ----------
+  const depositWithBlankCash = res.totalOnline + res.totalEasypay; // cash column starts blank, filled in manually
+  const closingWithBlankCash = res.opening + res.totalCollection - depositWithBlankCash;
   const summaryDefs = [
     [sumRow1, '1. Opening Balance (RCDC) :-', res.opening, false, null],
     [sumRow2, '2. Total Collection :-', res.totalCollection, false, null],
-    [sumRow3, '3. Total Deposit :-', res.totalDeposit, false, `C${totalRow}+D${totalRow}+E${totalRow}`],
-    [sumRow4, '4. Closing Balance as per Cash Book :-', res.closing, true, `F${sumRow1}+F${sumRow2}-F${sumRow3}`],
+    [sumRow3, '3. Total Deposit :-', depositWithBlankCash, false, `C${totalRow}+D${totalRow}+E${totalRow}`],
+    [sumRow4, '4. Closing Balance as per Cash Book :-', closingWithBlankCash, true, `F${sumRow1}+F${sumRow2}-F${sumRow3}`],
   ];
   summaryDefs.forEach(([row, label, value, isFinal, formula])=>{
     ws.mergeCells(row,1,row,5);
