@@ -261,29 +261,39 @@ let lastResult = null;
 
 function norm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
 
-function excelSerialToDate(n){
-  // Excel epoch (1900 system), matches SheetJS's own conversion
-  const utc = XLSX.SSF.parse_date_code(n);
-  return new Date(Date.UTC(utc.y, utc.m-1, utc.d));
+function excelSerialToYMD(serial){
+  // Excel's day-count epoch is Dec 30, 1899 — adding the serial as whole days
+  // (via real calendar math) reproduces Excel's dates correctly for any
+  // modern date, with no dependency on any library's internal date routine.
+  const wholeDays = Math.round(serial);
+  const ms = Date.UTC(1899, 11, 30) + wholeDays * 86400000;
+  const d = new Date(ms);
+  return {y: d.getUTCFullYear(), m: d.getUTCMonth()+1, d: d.getUTCDate()};
 }
 
 function parseDateVal(v){
-  if(v instanceof Date) return v;
-  if(typeof v === 'number') return excelSerialToDate(v);
+  if(typeof v === 'number'){
+    return excelSerialToYMD(v);
+  }
   if(typeof v === 'string'){
     const s = v.trim();
-    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if(m) return new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(m) return {y:+m[1], m:+m[2], d:+m[3]};
     m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-    if(m) return new Date(Date.UTC(+m[3], +m[2]-1, +m[1]));
-    const d = new Date(s);
-    if(!isNaN(d)) return d;
+    if(m) return {y:+m[3], m:+m[2], d:+m[1]};
   }
   return null;
 }
 
-function isoDate(d){
-  return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+function isoDate(dv){
+  return dv.y+'-'+String(dv.m).padStart(2,'0')+'-'+String(dv.d).padStart(2,'0');
+}
+
+function daysInMonth(year, month){
+  // 0th day of next month = last day of this month, computed purely arithmetically
+  const leap = (year%4===0 && year%100!==0) || year%400===0;
+  const table = [31, leap?29:28, 31,30,31,30,31,31,30,31,30,31];
+  return table[month-1];
 }
 
 function readSheetAsRows(file){
@@ -291,7 +301,7 @@ function readSheetAsRows(file){
     const reader = new FileReader();
     reader.onload = e=>{
       try{
-        const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+        const wb = XLSX.read(e.target.result, {type:'array', cellDates:false});
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
         resolve(rows);
@@ -357,7 +367,7 @@ function detectMonthYear(rows){
   if(!rows || !rows.length) return null;
   const counts = {};
   rows.forEach(r=>{
-    const key = r.date.getUTCFullYear()+'-'+(r.date.getUTCMonth()+1);
+    const key = r.date.y+'-'+r.date.m;
     counts[key] = (counts[key]||0)+1;
   });
   let best=null, bestCount=-1;
@@ -422,15 +432,14 @@ function computeStatement(){
   const onlineId = document.getElementById('fOnlineId').value.trim();
   const disconnHeads = document.getElementById('fDisconnHeads').value.split(',').map(s=>s.trim()).filter(Boolean);
 
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const numDays = daysInMonth(year, month);
 
-  const misMonth = misRows.filter(r=>r.date.getUTCFullYear()===year && r.date.getUTCMonth()+1===month);
-  const hwMonth = hwRows.filter(r=>r.date.getUTCFullYear()===year && r.date.getUTCMonth()+1===month && disconnHeads.includes(r.billHead));
+  const misMonth = misRows.filter(r=>r.date.y===year && r.date.m===month);
+  const hwMonth = hwRows.filter(r=>r.date.y===year && r.date.m===month && disconnHeads.includes(r.billHead));
 
   const dayRows = [];
-  for(let d=1; d<=daysInMonth; d++){
-    const dt = new Date(Date.UTC(year, month-1, d));
-    const key = isoDate(dt);
+  for(let d=1; d<=numDays; d++){
+    const key = year+'-'+String(month).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     const misDay = misMonth.filter(r=>isoDate(r.date)===key);
     const misTotal = misDay.reduce((s,r)=>s+r.total,0);
     const cashMis = misDay.filter(r=>cashIds.includes(r.collectorId)).reduce((s,r)=>s+r.total,0);
@@ -438,7 +447,7 @@ function computeStatement(){
     const easypay = misTotal - cashMis - onlineMis;
     const hwDay = hwMonth.filter(r=>isoDate(r.date)===key).reduce((s,r)=>s+r.amount,0);
     const cash = cashMis + hwDay;
-    dayRows.push({sl:d, date:dt, cash, online:onlineMis, easypay});
+    dayRows.push({sl:d, cash, online:onlineMis, easypay});
   }
 
   const totalCash = dayRows.reduce((s,r)=>s+r.cash,0);
@@ -451,7 +460,7 @@ function computeStatement(){
   const closing = opening + totalCollection - totalDeposit;
 
   return {
-    month, year, subdiv, opening, cashIds, onlineId, disconnHeads, daysInMonth,
+    month, year, subdiv, opening, cashIds, onlineId, disconnHeads, numDays,
     dayRows, totalCash, totalOnline, totalEasypay, totalCollection, totalDeposit, closing
   };
 }
