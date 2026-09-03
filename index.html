@@ -3,133 +3,331 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RCDC Deposit Statement Generator</title>
+<title>AESD Statement Tools — RCDC &amp; DW Statement Generator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
-  :root{
+body{ margin:0; }
+
+#tabBar{
+  display:flex;
+  gap:0;
+  background:#12233E;
+  padding:0 20px;
+  position:sticky;
+  top:0;
+  z-index:50;
+  border-bottom:3px solid #b5651d;
+}
+#tabBar button{
+  appearance:none;
+  border:none;
+  background:transparent;
+  color:#9fb2c2;
+  font-family:'Inter','IBM Plex Sans',system-ui,sans-serif;
+  font-size:13.5px;
+  font-weight:600;
+  padding:16px 22px;
+  cursor:pointer;
+  border-bottom:3px solid transparent;
+  margin-bottom:-3px;
+  transition:color .15s, border-color .15s;
+}
+#tabBar button:hover{ color:#fff; }
+#tabBar button.active{
+  color:#fff;
+  border-bottom-color:#e8b04d;
+}
+#tabBar button:focus-visible{ outline:2px solid #e8b04d; outline-offset:-2px; }
+.app-pane{ display:none; }
+.app-pane.active{ display:block; }
+
+#rcdcApp{
     --navy:#1B3358; --navy-deep:#12233E; --teal:#0E7C7B; --amber:#B7791F;
     --paper:#F6F7F9; --card:#FFFFFF; --ink:#1F2430; --muted:#66707E;
     --line:#E1E5EA; --line-strong:#C7CDD6; --pos:#0E7C4F; --neg:#B23B3B;
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
-  body{background:var(--paper); color:var(--ink); font-family:'Inter', system-ui, sans-serif; line-height:1.5; -webkit-font-smoothing:antialiased;}
-  .wrap{max-width:980px; margin:0 auto; padding:40px 20px 80px;}
-
-  .letterhead{
+  }#rcdcApp * {box-sizing:border-box;}#rcdcApp html, #rcdcApp body {margin:0;padding:0;}#rcdcApp body {background:var(--paper); color:var(--ink); font-family:'Inter', system-ui, sans-serif; line-height:1.5; -webkit-font-smoothing:antialiased;}#rcdcApp .wrap {max-width:980px; margin:0 auto; padding:40px 20px 80px;}#rcdcApp .letterhead {
     background:linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
     color:#fff; border-radius:10px; padding:34px 38px 30px; position:relative; overflow:hidden;
-  }
-  .letterhead::after{
+  }#rcdcApp .letterhead::after {
     content:""; position:absolute; top:-60px; right:-60px; width:220px; height:220px;
     border-radius:50%; background:radial-gradient(circle, rgba(14,124,123,0.35), transparent 70%);
-  }
-  .org{font-size:13px; letter-spacing:0.02em; color:#B9C6DA; position:relative; z-index:1;}
-  h1{
+  }#rcdcApp .org {font-size:13px; letter-spacing:0.02em; color:#B9C6DA; position:relative; z-index:1;}#rcdcApp h1 {
     font-family:'Source Serif 4', serif; font-weight:600; font-size:clamp(22px, 3.2vw, 30px);
     line-height:1.28; margin:14px 0 8px; position:relative; z-index:1; max-width:640px;
-  }
-  .tagline{font-size:15px; color:#D7DEE9; position:relative; z-index:1; max-width:560px;}
-
-  .section-title{display:flex; align-items:center; gap:10px; margin:36px 0 14px;}
-  .section-title h2{font-family:'Source Serif 4', serif; font-weight:600; font-size:19px; margin:0; color:var(--navy-deep);}
-  .section-title .rule{flex:1; height:1px; background:var(--line-strong);}
-
-  .card{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:24px 26px;}
-
-  .step-badge{
+  }#rcdcApp .tagline {font-size:15px; color:#D7DEE9; position:relative; z-index:1; max-width:560px;}#rcdcApp .section-title {display:flex; align-items:center; gap:10px; margin:36px 0 14px;}#rcdcApp .section-title h2 {font-family:'Source Serif 4', serif; font-weight:600; font-size:19px; margin:0; color:var(--navy-deep);}#rcdcApp .section-title .rule {flex:1; height:1px; background:var(--line-strong);}#rcdcApp .card {background:var(--card); border:1px solid var(--line); border-radius:10px; padding:24px 26px;}#rcdcApp .step-badge {
     display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px;
     border-radius:50%; background:var(--teal); color:#fff; font-size:12px; font-weight:700; margin-right:9px;
-  }
-
-  .upload-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
-  .dropzone{
+  }#rcdcApp .upload-grid {display:grid; grid-template-columns:1fr 1fr; gap:16px;}#rcdcApp .dropzone {
     border:1.5px dashed var(--line-strong); border-radius:9px; padding:22px 18px; text-align:center;
     cursor:pointer; transition:border-color .15s, background .15s; background:#FBFCFD;
-  }
-  .dropzone:hover, .dropzone.drag{border-color:var(--teal); background:#F0F8F7;}
-  .dropzone.filled{border-color:var(--pos); background:#F1F9F4;}
-  .dropzone .dz-title{font-weight:600; font-size:14.5px; margin-bottom:4px; color:var(--navy-deep);}
-  .dropzone .dz-sub{font-size:12.5px; color:var(--muted);}
-  .dropzone .dz-file{font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--pos); margin-top:8px; word-break:break-all;}
-  .dropzone input{display:none;}
-
-  details.adv{margin-top:18px;}
-  details.adv summary{cursor:pointer; font-size:13.5px; font-weight:600; color:var(--navy); padding:6px 0;}
-  .adv-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px;}
-  .field{display:flex; flex-direction:column; gap:5px;}
-  .field label{font-size:12.5px; color:var(--muted); font-weight:600;}
-  .field input, .field select{
+  }#rcdcApp .dropzone:hover, #rcdcApp .dropzone.drag {border-color:var(--teal); background:#F0F8F7;}#rcdcApp .dropzone.filled {border-color:var(--pos); background:#F1F9F4;}#rcdcApp .dropzone .dz-title {font-weight:600; font-size:14.5px; margin-bottom:4px; color:var(--navy-deep);}#rcdcApp .dropzone .dz-sub {font-size:12.5px; color:var(--muted);}#rcdcApp .dropzone .dz-file {font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--pos); margin-top:8px; word-break:break-all;}#rcdcApp .dropzone input {display:none;}#rcdcApp details.adv {margin-top:18px;}#rcdcApp details.adv summary {cursor:pointer; font-size:13.5px; font-weight:600; color:var(--navy); padding:6px 0;}#rcdcApp .adv-grid {display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px;}#rcdcApp .field {display:flex; flex-direction:column; gap:5px;}#rcdcApp .field label {font-size:12.5px; color:var(--muted); font-weight:600;}#rcdcApp .field input, #rcdcApp .field select {
     font-family:'Inter', sans-serif; font-size:14px; padding:8px 10px; border:1px solid var(--line-strong);
     border-radius:7px; background:#fff; color:var(--ink);
-  }
-  .field input:focus, .field select:focus{outline:2px solid var(--teal); outline-offset:1px;}
-  .field .hint{font-size:11px; color:#93A0AF;}
-
-  .row-actions{display:flex; align-items:center; gap:14px; margin-top:22px; flex-wrap:wrap;}
-  button.primary{
+  }#rcdcApp .field input:focus, #rcdcApp .field select:focus {outline:2px solid var(--teal); outline-offset:1px;}#rcdcApp .field .hint {font-size:11px; color:#93A0AF;}#rcdcApp .row-actions {display:flex; align-items:center; gap:14px; margin-top:22px; flex-wrap:wrap;}#rcdcApp button.primary {
     font-family:'Inter', sans-serif; font-size:14px; font-weight:700; background:var(--navy); color:#fff;
     border:none; padding:11px 22px; border-radius:8px; cursor:pointer;
-  }
-  button.primary:disabled{background:#B9C2CE; cursor:not-allowed;}
-  button.primary:not(:disabled):hover{background:var(--navy-deep);}
-  button.secondary{
+  }#rcdcApp button.primary:disabled {background:#B9C2CE; cursor:not-allowed;}#rcdcApp button.primary:not(:disabled):hover {background:var(--navy-deep);}#rcdcApp button.secondary {
     font-family:'Inter', sans-serif; font-size:13.5px; font-weight:600; background:#fff; color:var(--navy);
     border:1.5px solid var(--navy); padding:9px 18px; border-radius:8px; cursor:pointer;
-  }
-  button.secondary:hover{background:#EEF1F6;}
-  button:focus-visible{outline:3px solid var(--teal); outline-offset:2px;}
-  .status{font-size:13px; color:var(--muted);}
-  .status.err{color:var(--neg); font-weight:600;}
-  .status.ok{color:var(--pos); font-weight:600;}
-
-  .summary{display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; margin-top:22px;}
-  .stat{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 16px 14px;}
-  .stat .label{font-size:12px; color:var(--muted); margin-bottom:7px;}
-  .stat .value{font-family:'IBM Plex Mono', monospace; font-size:20px; font-weight:600; color:var(--navy);}
-  .stat.closing .value{color:var(--pos);}
-
-  .table-card{background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden;}
-  .table-scroll{overflow-x:auto; max-height:520px; overflow-y:auto;}
-  table{width:100%; border-collapse:collapse; font-size:14px; min-width:600px;}
-  thead th{
+  }#rcdcApp button.secondary:hover {background:#EEF1F6;}#rcdcApp button:focus-visible {outline:3px solid var(--teal); outline-offset:2px;}#rcdcApp .status {font-size:13px; color:var(--muted);}#rcdcApp .status.err {color:var(--neg); font-weight:600;}#rcdcApp .status.ok {color:var(--pos); font-weight:600;}#rcdcApp .summary {display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; margin-top:22px;}#rcdcApp .stat {background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 16px 14px;}#rcdcApp .stat .label {font-size:12px; color:var(--muted); margin-bottom:7px;}#rcdcApp .stat .value {font-family:'IBM Plex Mono', monospace; font-size:20px; font-weight:600; color:var(--navy);}#rcdcApp .stat.closing .value {color:var(--pos);}#rcdcApp .table-card {background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden;}#rcdcApp .table-scroll {overflow-x:auto; max-height:520px; overflow-y:auto;}#rcdcApp table {width:100%; border-collapse:collapse; font-size:14px; min-width:600px;}#rcdcApp thead th {
     position:sticky; top:0; background:var(--navy); color:#fff; text-align:right; font-weight:600;
     padding:10px 16px; font-size:12.5px;
-  }
-  thead th:first-child, thead th:nth-child(2){text-align:left;}
-  tbody td{padding:8px 16px; text-align:right; border-bottom:1px solid var(--line); font-family:'IBM Plex Mono', monospace; font-size:13.5px;}
-  tbody td:first-child{font-family:'Inter', sans-serif; color:var(--muted); text-align:left; width:44px;}
-  tbody td:nth-child(2){font-family:'Inter', sans-serif; text-align:left;}
-  tbody tr:nth-child(even){background:#FAFBFC;}
-  tfoot td{padding:11px 16px; font-weight:700; font-family:'IBM Plex Mono', monospace; background:#EEF1F6; border-top:2px solid var(--line-strong);}
-  tfoot td:first-child, tfoot td:nth-child(2){font-family:'Inter', sans-serif; text-align:left; color:var(--navy-deep);}
+  }#rcdcApp thead th:first-child, #rcdcApp thead th:nth-child(2) {text-align:left;}#rcdcApp tbody td {padding:8px 16px; text-align:right; border-bottom:1px solid var(--line); font-family:'IBM Plex Mono', monospace; font-size:13.5px;}#rcdcApp tbody td:first-child {font-family:'Inter', sans-serif; color:var(--muted); text-align:left; width:44px;}#rcdcApp tbody td:nth-child(2) {font-family:'Inter', sans-serif; text-align:left;}#rcdcApp tbody tr:nth-child(even) {background:#FAFBFC;}#rcdcApp tfoot td {padding:11px 16px; font-weight:700; font-family:'IBM Plex Mono', monospace; background:#EEF1F6; border-top:2px solid var(--line-strong);}#rcdcApp tfoot td:first-child, #rcdcApp tfoot td:nth-child(2) {font-family:'Inter', sans-serif; text-align:left; color:var(--navy-deep);}#rcdcApp .recon {background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px 24px;}#rcdcApp .recon-row {display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px dashed var(--line); font-size:14px;}#rcdcApp .recon-row:last-child {border-bottom:none;}#rcdcApp .recon-row .amt {font-family:'IBM Plex Mono', monospace; font-weight:600; white-space:nowrap;}#rcdcApp .recon-row.final {padding-top:13px; border-top:2px solid var(--line-strong); margin-top:3px;}#rcdcApp .recon-row.final .amt {color:var(--pos); font-size:15.5px;}#rcdcApp #resultsArea {display:none;}#rcdcApp .download-row {display:flex; justify-content:flex-end; margin-top:20px;}#rcdcApp .notes {margin-top:34px; font-size:12.5px; color:var(--muted);}#rcdcApp .notes code {background:#EEF1F6; padding:1px 6px; border-radius:4px; font-family:'IBM Plex Mono', monospace; font-size:11.5px;}#rcdcApp footer {text-align:center; margin-top:46px; font-size:12px; color:#93A0AF;}
 
-  .recon{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px 24px;}
-  .recon-row{display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px dashed var(--line); font-size:14px;}
-  .recon-row:last-child{border-bottom:none;}
-  .recon-row .amt{font-family:'IBM Plex Mono', monospace; font-weight:600; white-space:nowrap;}
-  .recon-row.final{padding-top:13px; border-top:2px solid var(--line-strong); margin-top:3px;}
-  .recon-row.final .amt{color:var(--pos); font-size:15.5px;}
+  @media (max-width:720px){#rcdcApp .upload-grid, #rcdcApp .adv-grid {grid-template-columns:1fr;}#rcdcApp .summary {grid-template-columns:repeat(2,1fr);}}
+#dwApp{
+    --ink:#16232e;
+    --ink-soft:#4c5c6b;
+    --line:#d7dee4;
+    --line-soft:#e9edf1;
+    --paper:#f5f7f8;
+    --card:#ffffff;
+    --brand:#0f4c5c;
+    --brand-deep:#0a3540;
+    --brand-soft:#e4eef0;
+    --accent:#b5651d;
+    --accent-soft:#fbe9d9;
+    --good:#1c6b3f;
+    --bad:#a3241f;
+    --bad-soft:#fbe7e6;
+    --mono: 'IBM Plex Mono', 'Consolas', monospace;
+    --sans: 'IBM Plex Sans', 'Segoe UI', Arial, sans-serif;
+  }#dwApp * {box-sizing:border-box;}#dwApp body {
+    margin:0;
+    font-family:var(--sans);
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }#dwApp .topbar {
+    background:var(--brand-deep);
+    color:#fff;
+    padding:22px 28px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+    border-bottom:4px solid var(--accent);
+  }#dwApp .topbar .mark {
+    display:flex;align-items:center;gap:14px;
+  }#dwApp .mark .glyph {
+    width:38px;height:38px;border:2px solid #fff;border-radius:4px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-weight:600;font-size:13px;
+    flex-shrink:0;
+  }#dwApp .topbar h1 {
+    font-size:17px;
+    margin:0;
+    font-weight:600;
+    letter-spacing:.2px;
+  }#dwApp .topbar p {
+    margin:2px 0 0;
+    font-size:12.5px;
+    color:#c7dade;
+  }#dwApp .topbar .step-indicator {
+    font-family:var(--mono);
+    font-size:11px;
+    color:#9fc2c8;
+    letter-spacing:.5px;
+    text-transform:uppercase;
+  }#dwApp main {
+    max-width:1400px;
+    margin:0 auto;
+    padding:28px 28px 80px;
+  }#dwApp .panel {
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:6px;
+    margin-bottom:22px;
+    overflow:hidden;
+  }#dwApp .panel-head {
+    padding:14px 20px;
+    border-bottom:1px solid var(--line-soft);
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }#dwApp .panel-head .num {
+    font-family:var(--mono);
+    font-size:12px;
+    color:#fff;
+    background:var(--brand);
+    width:22px;height:22px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }#dwApp .panel-head h2 {
+    font-size:14.5px;
+    margin:0;
+    font-weight:600;
+  }#dwApp .panel-head .sub {
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-left:auto;
+  }#dwApp .panel-body {padding:20px;}#dwApp /* Upload zone */
+  .dropzone {
+    border:1.5px dashed var(--line);
+    border-radius:6px;
+    padding:30px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    background:#fbfcfc;
+  }#dwApp .dropzone:hover, #dwApp .dropzone.drag {
+    border-color:var(--brand);
+    background:var(--brand-soft);
+  }#dwApp .dropzone svg {width:30px;height:30px;color:var(--brand);margin-bottom:8px;}#dwApp .dropzone .primary-txt {font-size:13.5px;font-weight:600;color:var(--ink);}#dwApp .dropzone .secondary-txt {font-size:12px;color:var(--ink-soft);margin-top:4px;}#dwApp input[type=file] {display:none;}#dwApp .file-chip {
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--brand-soft);
+    border:1px solid #bcd4d8;
+    color:var(--brand-deep);
+    padding:7px 12px;
+    border-radius:5px;
+    font-size:12.5px;
+    font-family:var(--mono);
+    margin-top:12px;
+  }#dwApp .file-chip button {
+    border:none;background:none;color:var(--brand-deep);
+    cursor:pointer;font-size:14px;font-weight:700;line-height:1;
+    padding:0;
+  }#dwApp .field-row {
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(220px,1fr));
+    gap:16px;
+    margin-top:18px;
+  }#dwApp .field {display:flex;flex-direction:column;gap:6px;}#dwApp .field label {
+    font-size:11.5px;
+    text-transform:uppercase;
+    letter-spacing:.4px;
+    color:var(--ink-soft);
+    font-weight:600;
+  }#dwApp .field input {
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:9px 10px;
+    font-size:13.5px;
+    font-family:var(--sans);
+    color:var(--ink);
+    background:#fff;
+  }#dwApp .field input:focus {outline:2px solid var(--brand);outline-offset:1px;}#dwApp .btn {
+    display:inline-flex;align-items:center;gap:8px;
+    border:none;
+    border-radius:4px;
+    padding:10px 18px;
+    font-size:13.5px;
+    font-weight:600;
+    font-family:var(--sans);
+    cursor:pointer;
+    transition:transform .06s, box-shadow .15s;
+  }#dwApp .btn:active {transform:translateY(1px);}#dwApp .btn-primary {background:var(--brand);color:#fff;}#dwApp .btn-primary:hover {background:var(--brand-deep);}#dwApp .btn-accent {background:var(--accent);color:#fff;}#dwApp .btn-accent:hover {background:#94510f;}#dwApp .btn[disabled] {opacity:.45;cursor:not-allowed;}#dwApp .btn svg {width:15px;height:15px;}#dwApp .banner {
+    border-radius:5px;
+    padding:12px 14px;
+    font-size:12.5px;
+    line-height:1.5;
+    margin-top:14px;
+    border:1px solid transparent;
+  }#dwApp .banner-warn {background:var(--accent-soft);border-color:#e6c299;color:#6b3f0d;}#dwApp .banner-info {background:var(--brand-soft);border-color:#bcd4d8;color:var(--brand-deep);}#dwApp .banner ul {margin:6px 0 0;padding-left:18px;}#dwApp .banner code {
+    background:rgba(0,0,0,.06);
+    padding:1px 5px;border-radius:3px;font-family:var(--mono);
+  }#dwApp /* summary strip */
+  .summary-strip {
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow:hidden;
+    margin-bottom:22px;
+  }#dwApp .summary-cell {
+    background:var(--card);
+    padding:14px 16px;
+  }#dwApp .summary-cell .label {
+    font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;
+    color:var(--ink-soft);font-weight:600;
+  }#dwApp .summary-cell .value {
+    font-family:var(--mono);font-size:19px;font-weight:600;
+    color:var(--brand-deep);margin-top:4px;
+  }#dwApp .summary-cell.accent .value {color:var(--accent);}#dwApp /* table */
+  .table-scroll {
+    overflow-x:auto;
+    border:1px solid var(--line);
+    border-radius:6px;
+  }#dwApp table.stmt {
+    border-collapse:collapse;
+    width:100%;
+    min-width:1500px;
+    font-size:12px;
+    font-family:var(--mono);
+  }#dwApp table.stmt th, #dwApp table.stmt td {
+    border:1px solid var(--line-soft);
+    padding:6px 7px;
+    text-align:right;
+    white-space:nowrap;
+  }#dwApp table.stmt th {
+    background:var(--brand);
+    color:#fff;
+    font-family:var(--sans);
+    font-weight:600;
+    text-align:center;
+    position:sticky;
+    top:0;
+    z-index:2;
+    font-size:11px;
+    letter-spacing:.2px;
+  }#dwApp table.stmt thead tr.group th {
+    background:var(--brand-deep);
+  }#dwApp table.stmt td.date-col, #dwApp table.stmt th.date-col {
+    text-align:left;
+    font-family:var(--sans);
+    font-weight:600;
+    position:sticky;
+    left:0;
+    background:#fff;
+    z-index:1;
+  }#dwApp table.stmt th.date-col {background:var(--brand-deep);z-index:3;}#dwApp table.stmt tbody tr:nth-child(even) td.date-col {background:#f8fafb;}#dwApp table.stmt td.auto {background:#f3f7f8;color:var(--brand-deep);font-weight:600;}#dwApp table.stmt td.total-col {background:var(--brand-soft);color:var(--brand-deep);font-weight:700;}#dwApp table.stmt tfoot td {
+    background:#eef2f3;
+    font-weight:700;
+    color:var(--ink);
+    position:sticky;
+    bottom:0;
+  }#dwApp table.stmt tfoot td.date-col {background:#dfe6e8;}#dwApp table.stmt input {
+    width:100%;
+    border:none;
+    background:transparent;
+    text-align:right;
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink);
+    padding:2px;
+  }#dwApp table.stmt input[type=text] {text-align:left;font-family:var(--sans);}#dwApp table.stmt input:focus {outline:1.5px solid var(--brand);background:#fff;}#dwApp table.stmt td.mismatch input {color:var(--bad);font-weight:700;}#dwApp table.stmt td.mismatch {background:var(--bad-soft);}#dwApp .legend {
+    display:flex;gap:18px;flex-wrap:wrap;
+    padding:12px 20px;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    border-top:1px solid var(--line-soft);
+    background:#fbfcfc;
+  }#dwApp .legend span {display:flex;align-items:center;gap:6px;}#dwApp .swatch {width:12px;height:12px;border-radius:2px;display:inline-block;border:1px solid var(--line);}#dwApp .sw-auto {background:#f3f7f8;}#dwApp .sw-total {background:var(--brand-soft);}#dwApp .sw-manual {background:#fff;}#dwApp .sw-mismatch {background:var(--bad-soft);}#dwApp footer {
+    text-align:center;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    padding:20px;
+  }#dwApp .hidden {display:none !important;}
 
-  #resultsArea{display:none;}
-  .download-row{display:flex; justify-content:flex-end; margin-top:20px;}
-
-  .notes{margin-top:34px; font-size:12.5px; color:var(--muted);}
-  .notes code{background:#EEF1F6; padding:1px 6px; border-radius:4px; font-family:'IBM Plex Mono', monospace; font-size:11.5px;}
-
-  footer{text-align:center; margin-top:46px; font-size:12px; color:#93A0AF;}
-
-  @media (max-width:720px){
-    .upload-grid, .adv-grid{grid-template-columns:1fr;}
-    .summary{grid-template-columns:repeat(2,1fr);}
-  }
+  @media (max-width:640px){#dwApp main {padding:16px;}#dwApp .topbar {padding:16px;}}
 </style>
 </head>
 <body>
+
+<div id="tabBar">
+  <button type="button" class="tab-btn active" data-target="rcdcApp">RCDC Deposit Statement</button>
+  <button type="button" class="tab-btn" data-target="dwApp">DW Statement</button>
+</div>
+
+<div id="rcdcApp" class="app-pane active">
 <div class="wrap">
 
   <div class="letterhead">
@@ -246,7 +444,162 @@
   <footer>RCDC Deposit Statement Generator — runs entirely in your browser, no data is uploaded anywhere.</footer>
 </div>
 
+</div>
+
+<div id="dwApp" class="app-pane">
+<div class="topbar">
+  <div class="mark">
+    <div class="glyph">DW</div>
+    <div>
+      <h1>Deposit Work Statement Generator</h1>
+      <p>HeadWise Collection &rarr; Monthly DW Statement, formatted to spec</p>
+    </div>
+  </div>
+  <div class="step-indicator">AESD &middot; Electrical Circle</div>
+</div>
+
+<main>
+
+  <!-- STEP 1: Upload -->
+  <section class="panel">
+    <div class="panel-head">
+      <span class="num">1</span>
+      <h2>Import HeadWise Collection</h2>
+      <span class="sub">Any month's file &mdash; .xlsx</span>
+    </div>
+    <div class="panel-body">
+      <div class="dropzone" id="dropzone">
+        <svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V4m0 0L7 9m5-5l5 5M4.5 16.5v2.25A2.25 2.25 0 006.75 21h10.5a2.25 2.25 0 002.25-2.25V16.5"/></svg>
+        <div class="primary-txt">Click to choose, or drag the HeadWise Collection file here</div>
+        <div class="secondary-txt">Only Bill Head, Amount, Payment Date &amp; Received By columns are read &mdash; everything else is ignored</div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls">
+      </div>
+      <div id="fileChipWrap"></div>
+      <div id="parseBanner"></div>
+    </div>
+  </section>
+
+  <!-- STEP 2: Header details -->
+  <section class="panel" id="detailsPanel" style="display:none;">
+    <div class="panel-head">
+      <span class="num">2</span>
+      <h2>Statement Header</h2>
+      <span class="sub">Shown at the top of the exported statement</span>
+    </div>
+    <div class="panel-body">
+      <div class="field-row">
+        <div class="field">
+          <label for="esdName">Name of ESD / AESD</label>
+          <input type="text" id="esdName" placeholder="e.g. AESD Dhubri">
+        </div>
+        <div class="field">
+          <label for="stmtMonth">For the Month</label>
+          <input type="text" id="stmtMonth" placeholder="e.g. July/2026">
+        </div>
+        <div class="field">
+          <label for="openingBal">Opening Balance in Hand (₹)</label>
+          <input type="number" id="openingBal" value="0">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="grid-column:1 / -1;">
+          <label for="agentCodes">Cash-collecting agent codes (comma separated)</label>
+          <input type="text" id="agentCodes" value="40003813, 40003144">
+          <div class="secondary-txt" style="margin-top:2px;">Everything in "Received By" that is <strong>not</strong> one of these codes and not <code>ONLINE</code> is treated as remitted directly to Circle via NEFT/RTGS. Adjust if this month's agent codes are different.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Summary -->
+  <div class="summary-strip hidden" id="summaryStrip"></div>
+
+  <!-- STEP 3: Preview / edit -->
+  <section class="panel hidden" id="tablePanel">
+    <div class="panel-head">
+      <span class="num">3</span>
+      <h2>Daily Statement</h2>
+      <span class="sub">Shaded columns are auto-filled from the import &middot; white columns need your entry</span>
+    </div>
+    <div class="table-scroll">
+      <table class="stmt" id="stmtTable">
+        <thead>
+          <tr class="group">
+            <th class="date-col" rowspan="2">Date</th>
+            <th rowspan="2">Load<br>Security</th>
+            <th rowspan="2">Meter<br>Cost</th>
+            <th rowspan="2">Service Conn.<br>(Installation)</th>
+            <th rowspan="2">Meter/Xfmr<br>Testing Fees</th>
+            <th rowspan="2">Processing Fee<br>(Change &amp; NSC)</th>
+            <th rowspan="2">Mtr Shifting/Refix/<br>Removing/Seal Cost</th>
+            <th rowspan="2">Service Conn.<br>(Est. &amp; Supervision)</th>
+            <th rowspan="2">TOTAL</th>
+            <th colspan="6">Deposits into DW A/C, BEC</th>
+            <th rowspan="2">Online into<br>Circle A/C</th>
+            <th rowspan="2">NEFT/RTGS<br>Directly to Circle</th>
+            <th rowspan="2">Date of<br>NEFT/RTGS</th>
+            <th rowspan="2">Balance<br>in Hand</th>
+            <th rowspan="2">Remarks</th>
+          </tr>
+          <tr class="group">
+            <th>Cash</th>
+            <th>Draft/<br>Cheque</th>
+            <th>Chq/Draft<br>No.</th>
+            <th>Dated</th>
+            <th>Name &amp; Id<br>of Consumer</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="stmtBody"></tbody>
+        <tfoot id="stmtFoot"></tfoot>
+      </table>
+    </div>
+    <div class="legend">
+      <span><span class="swatch sw-auto"></span> auto-filled from import</span>
+      <span><span class="swatch sw-total"></span> auto-calculated total</span>
+      <span><span class="swatch sw-manual"></span> enter manually</span>
+      <span><span class="swatch sw-mismatch"></span> day doesn't balance &mdash; check deposit entries</span>
+    </div>
+  </section>
+
+  <!-- STEP 4: Download -->
+  <section class="panel hidden" id="downloadPanel">
+    <div class="panel-head">
+      <span class="num">4</span>
+      <h2>Download</h2>
+      <span class="sub">Formatted as a ready-to-file .xlsx</span>
+    </div>
+    <div class="panel-body">
+      <button class="btn btn-accent" id="downloadBtn">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v13m0 0l-4.5-4.5M12 16l4.5-4.5M4 20h16"/></svg>
+        Download DW Statement (.xlsx)
+      </button>
+    </div>
+  </section>
+
+</main>
+
+<footer>Runs entirely in your browser &mdash; no data leaves your device.</footer>
+
+</div>
+
 <script>
+(function(){
+  const buttons = document.querySelectorAll('#tabBar .tab-btn');
+  const panes = document.querySelectorAll('.app-pane');
+  buttons.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      buttons.forEach(b=>b.classList.remove('active'));
+      panes.forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.target).classList.add('active');
+    });
+  });
+})();
+</script>
+
+<script>
+(function(){
 const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fMonth = document.getElementById('fMonth');
 monthNames.forEach((m,i)=>{
@@ -692,6 +1045,549 @@ document.getElementById('btnDownload').addEventListener('click', async ()=>{
     }
   });
 });
+})();
 </script>
+
+<script>
+(function(){
+  // ---------- classification rules ----------
+  // Order matters: first match wins.
+  const RULES = [
+    { key:'ignore',  test:h => /DISCONNECTION/.test(h) },
+    { key:'ignore',  test:h => /TEMPORARY/.test(h) },
+    { key:'ignore',  test:h => /DISMANTLE/.test(h) },
+    { key:'loadSecurity', test:h => /LOAD SECURITY/.test(h) },
+    { key:'meterCost',    test:h => /METER COST/.test(h) },
+    { key:'installation', test:h => /INSTALLATION/.test(h) },
+    { key:'testing',      test:h => /TEST/.test(h) },
+    { key:'processingFee',test:h => /PROCESSING FEE/.test(h) },
+    { key:'meterShifting',test:h => /SEAL COST|SHIFT|RE-?FIX|REMOV/.test(h) },
+    { key:'estimateSupervision', test:h => /ESTIMATE|SUPERVISION/.test(h) },
+  ];
+  const EXCLUDE_METER_COST_AMOUNTS = [2400, 6000];
+
+  const CATS = ['loadSecurity','meterCost','installation','testing','processingFee','meterShifting','estimateSupervision'];
+  const CAT_LABEL = {
+    loadSecurity:'Load Security', meterCost:'Meter Cost', installation:'Service Connection (Installation)',
+    testing:'Meter/Transformer Testing Fees', processingFee:'Processing Fee (Change process & NSC)',
+    meterShifting:'Mtr. Shifting/Re-fixing/Removing/Meter Seal Cost', estimateSupervision:'Service Connection (Estimate & Supervision Amount)'
+  };
+
+  function classify(billHead){
+    const h = (billHead||'').toString().toUpperCase();
+    for(const r of RULES){ if(r.test(h)) return r.key; }
+    return 'unmapped';
+  }
+
+  // ---------- state ----------
+  let state = {
+    fileName:null,
+    days:[],          // array of day objects keyed by 'YYYY-MM-DD'
+    year:null, month:null, // 0-indexed month
+    unmapped:{},       // billhead -> {count, sum}
+    excludedMeterCost:{count:0, sum:0},
+    ignoredTotals:{},  // reason -> sum
+    rawEntries:[],     // {key, amount, receivedBy} for every mapped, counted entry - used to re-derive Online/NEFT when agent codes change
+  };
+
+  const $ = sel => document.querySelector(sel);
+  const fmt = n => (Math.round((n||0)*100)/100).toLocaleString('en-IN');
+
+  function getAgentCodes(){
+    const raw = ($('#agentCodes') && $('#agentCodes').value) || '';
+    return new Set(raw.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean));
+  }
+
+  function emptyDay(dateObj){
+    const d = {};
+    CATS.forEach(c => d[c]=0);
+    d.online = 0;
+    d.cash = 0; d.draftCheque = 0; d.chqNo=''; d.dated=''; d.nameId='';
+    d.neft = 0; d.neftDate=''; d.remarks='';
+    d.date = dateObj;
+    return d;
+  }
+
+  // ---------- file parsing ----------
+  const fileInput = $('#fileInput');
+  const dropzone = $('#dropzone');
+  dropzone.addEventListener('click', ()=>fileInput.click());
+  dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('drag');});
+  dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e=>{
+    e.preventDefault(); dropzone.classList.remove('drag');
+    if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e=>{
+    if(e.target.files.length) handleFile(e.target.files[0]);
+  });
+
+  async function handleFile(file){
+    $('#fileChipWrap').innerHTML = `<div class="file-chip">📄 ${file.name} <button id="clearFile" title="Remove">&times;</button></div>`;
+    $('#clearFile').addEventListener('click', ()=>{ location.reload(); });
+    $('#parseBanner').innerHTML = `<div class="banner banner-info">Reading workbook&hellip;</div>`;
+    try{
+      const buf = await file.arrayBuffer();
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+      parseWorkbook(wb);
+    }catch(err){
+      console.error(err);
+      $('#parseBanner').innerHTML = `<div class="banner banner-warn"><strong>Could not read this file.</strong> Make sure it's the HeadWise Collection .xlsx export. (${err.message||err})</div>`;
+    }
+  }
+
+  function excelDateToJS(v){
+    if(v instanceof Date) return v;
+    if(typeof v === 'number'){
+      // excel serial date
+      return new Date(Math.round((v - 25569) * 86400 * 1000));
+    }
+    if(typeof v === 'string'){
+      const d = new Date(v);
+      if(!isNaN(d)) return d;
+    }
+    if(v && v.result){ return excelDateToJS(v.result); }
+    return null;
+  }
+
+  function parseWorkbook(wb){
+    // find a sheet that looks like the headwise collection
+    let ws = wb.worksheets.find(s => /headwise/i.test(s.name)) || wb.worksheets[0];
+
+    // find header row: first row containing a cell matching /bill head/i
+    let headerRowNum = null, colMap = {};
+    for(let r=1; r<=Math.min(10, ws.rowCount); r++){
+      const row = ws.getRow(r);
+      let found = false;
+      row.eachCell({includeEmpty:false}, (cell, colNum)=>{
+        const v = (cell.value||'').toString().trim().toLowerCase();
+        if(v === 'bill head'){ colMap.billHead = colNum; found = true; }
+        if(v === 'amount'){ colMap.amount = colNum; }
+        if(v === 'payment date'){ colMap.paymentDate = colNum; }
+        if(v === 'received by'){ colMap.receivedBy = colNum; }
+      });
+      if(found){ headerRowNum = r; break; }
+    }
+
+    if(!headerRowNum || !colMap.billHead || !colMap.amount || !colMap.paymentDate){
+      $('#parseBanner').innerHTML = `<div class="banner banner-warn"><strong>Couldn't find the expected columns.</strong> This tool looks for "Bill Head", "Amount", "Payment Date" and "Received By" headers &mdash; check the file matches the usual HeadWise Collection export.</div>`;
+      return;
+    }
+
+    const days = {};       // 'YYYY-MM-DD' -> day obj
+    const unmapped = {};
+    const excludedMeterCost = {count:0, sum:0};
+    const ignoredTotals = {};
+    const monthCounts = {};
+    const state_rawEntries = [];
+
+    for(let r=headerRowNum+1; r<=ws.rowCount; r++){
+      const row = ws.getRow(r);
+      const billHeadRaw = row.getCell(colMap.billHead).value;
+      if(billHeadRaw === null || billHeadRaw === undefined || billHeadRaw === '') continue;
+      const billHead = billHeadRaw.toString().trim();
+      let amount = row.getCell(colMap.amount).value;
+      if(amount && typeof amount === 'object' && 'result' in amount) amount = amount.result;
+      amount = Number(amount) || 0;
+      const rawDate = row.getCell(colMap.paymentDate).value;
+      const dateObj = excelDateToJS(rawDate);
+      if(!dateObj) continue;
+      const receivedByRaw = colMap.receivedBy ? row.getCell(colMap.receivedBy).value : '';
+      const receivedBy = (receivedByRaw||'').toString().trim().toUpperCase();
+
+      const key = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
+      const mKey = `${dateObj.getFullYear()}-${dateObj.getMonth()}`;
+      monthCounts[mKey] = (monthCounts[mKey]||0)+1;
+
+      if(!days[key]) days[key] = emptyDay(dateObj);
+      const day = days[key];
+
+      const cat = classify(billHead);
+
+      if(cat === 'ignore'){
+        const reasonMatch = /DISCONNECTION/.test(billHead.toUpperCase()) ? 'Disconnection/Reconnection charges'
+                            : /TEMPORARY/.test(billHead.toUpperCase()) ? 'Temporary energy charge'
+                            : 'Dismantle fees';
+        ignoredTotals[reasonMatch] = (ignoredTotals[reasonMatch]||0) + amount;
+        continue;
+      }
+      if(cat === 'unmapped'){
+        if(!unmapped[billHead]) unmapped[billHead] = {count:0, sum:0};
+        unmapped[billHead].count++;
+        unmapped[billHead].sum += amount;
+        continue;
+      }
+      if(cat === 'meterCost' && EXCLUDE_METER_COST_AMOUNTS.includes(amount)){
+        excludedMeterCost.count++;
+        excludedMeterCost.sum += amount;
+        continue;
+      }
+
+      day[cat] += amount;
+      state_rawEntries.push({ key, amount, receivedBy });
+    }
+
+    // determine the dominant month/year
+    let bestKey=null, bestCount=-1;
+    for(const k in monthCounts){ if(monthCounts[k]>bestCount){bestCount=monthCounts[k]; bestKey=k;} }
+    let year, month;
+    if(bestKey){ [year, month] = bestKey.split('-').map(Number); }
+    else { const now = new Date(); year = now.getFullYear(); month = now.getMonth(); }
+
+    // build full calendar of days for that month, merging in parsed data
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    const fullDays = [];
+    for(let d=1; d<=daysInMonth; d++){
+      const dt = new Date(year, month, d);
+      const key = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      fullDays.push(days[key] ? Object.assign(days[key],{date:dt}) : emptyDay(dt));
+    }
+
+    state.fileName = state.fileName;
+    state.days = fullDays;
+    state.year = year; state.month = month;
+    state.unmapped = unmapped;
+    state.excludedMeterCost = excludedMeterCost;
+    state.ignoredTotals = ignoredTotals;
+    state.rawEntries = state_rawEntries;
+
+    computeOnlineNeft();
+
+    const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    $('#stmtMonth').value = `${monthNames[month]}/${year}`;
+
+    renderBanner();
+    renderSummary();
+    renderTable();
+    $('#detailsPanel').style.display='';
+    $('#tablePanel').classList.remove('hidden');
+    $('#downloadPanel').classList.remove('hidden');
+    $('#summaryStrip').classList.remove('hidden');
+  }
+
+  function renderBanner(){
+    let html = '';
+    const unmappedKeys = Object.keys(state.unmapped);
+    if(unmappedKeys.length){
+      html += `<div class="banner banner-warn"><strong>${unmappedKeys.length} bill head(s) didn't match a known column</strong> and were left out of the statement &mdash; add them in manually if they matter:
+      <ul>${unmappedKeys.map(k=>`<li><code>${k}</code> &mdash; ${state.unmapped[k].count} entr${state.unmapped[k].count===1?'y':'ies'}, ₹${fmt(state.unmapped[k].sum)}</li>`).join('')}</ul></div>`;
+    }
+    const ignoredKeys = Object.keys(state.ignoredTotals);
+    const excl = state.excludedMeterCost;
+    if(ignoredKeys.length || excl.count){
+      html += `<div class="banner banner-info">
+        ${ignoredKeys.map(k=>`Excluded per instructions &mdash; <strong>${k}</strong>: ₹${fmt(state.ignoredTotals[k])}`).join('<br>')}
+        ${excl.count ? `${ignoredKeys.length?'<br>':''}Excluded per instructions &mdash; <strong>Meter Cost entries of ₹2,400 / ₹6,000</strong>: ${excl.count} entries, ₹${fmt(excl.sum)}` : ''}
+      </div>`;
+    }
+    $('#parseBanner').innerHTML = html;
+  }
+
+  function computeOnlineNeft(){
+    const agentCodes = getAgentCodes();
+    const byKey = {};
+    state.days.forEach(d=>{
+      d.online = 0; d.neft = 0;
+      const key = `${d.date.getFullYear()}-${String(d.date.getMonth()+1).padStart(2,'0')}-${String(d.date.getDate()).padStart(2,'0')}`;
+      byKey[key] = d;
+    });
+    state.rawEntries.forEach(({key, amount, receivedBy})=>{
+      const day = byKey[key];
+      if(!day) return;
+      if(receivedBy === 'ONLINE'){
+        day.online += amount;
+      } else if(!agentCodes.has(receivedBy)){
+        // any code that isn't a known cash-collecting agent, and isn't ONLINE,
+        // is treated as remitted directly to Circle via NEFT/RTGS
+        day.neft += amount;
+      }
+    });
+  }
+
+  function totalsForDay(day){
+    const feeTotal = CATS.reduce((s,c)=>s+day[c],0);
+    const depositTotal = day.cash + day.draftCheque;
+    const accounted = depositTotal + day.online + day.neft;
+    const balance = Math.round((feeTotal - accounted)*100)/100;
+    return {feeTotal, depositTotal, balance};
+  }
+
+  function renderSummary(){
+    let feeTotal=0, online=0, cash=0, draftCheque=0, neft=0;
+    state.days.forEach(d=>{
+      const t = totalsForDay(d);
+      feeTotal += t.feeTotal; online += d.online; cash += d.cash; draftCheque += d.draftCheque; neft += d.neft;
+    });
+    const cells = [
+      ['Days in statement', state.days.length, false],
+      ['Total collection', '₹'+fmt(feeTotal), false],
+      ['Online to Circle', '₹'+fmt(online), false],
+      ['Cash + Cheque (DW A/C)', '₹'+fmt(cash+draftCheque), true],
+      ['NEFT/RTGS to Circle', '₹'+fmt(neft), true],
+    ];
+    $('#summaryStrip').innerHTML = cells.map(([label,val,accent])=>
+      `<div class="summary-cell${accent?' accent':''}"><div class="label">${label}</div><div class="value">${val}</div></div>`
+    ).join('');
+  }
+
+  // ---------- table rendering ----------
+  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  function dateStr(d){
+    return `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
+  }
+  function dateLabel(d){
+    return `${dateStr(d)} <span style="color:#8fa3ac;font-weight:400;">${dayNames[d.getDay()]}</span>`;
+  }
+
+  function renderTable(){
+    const body = $('#stmtBody');
+    body.innerHTML = '';
+    state.days.forEach((day, idx)=>{
+      const tr = document.createElement('tr');
+      tr.dataset.idx = idx;
+      const t = totalsForDay(day);
+      const mismatchClass = Math.abs(t.balance) > 0.5 ? ' mismatch' : '';
+      tr.innerHTML = `
+        <td class="date-col">${dateLabel(day.date)}</td>
+        <td class="auto">${fmt(day.loadSecurity)}</td>
+        <td class="auto">${fmt(day.meterCost)}</td>
+        <td class="auto">${fmt(day.installation)}</td>
+        <td class="auto">${fmt(day.testing)}</td>
+        <td class="auto">${fmt(day.processingFee)}</td>
+        <td class="auto">${fmt(day.meterShifting)}</td>
+        <td class="auto">${fmt(day.estimateSupervision)}</td>
+        <td class="total-col">${fmt(t.feeTotal)}</td>
+        <td><input type="number" step="any" data-f="cash" value="${day.cash||''}"></td>
+        <td><input type="number" step="any" data-f="draftCheque" value="${day.draftCheque||''}"></td>
+        <td><input type="text" data-f="chqNo" value="${day.chqNo||''}"></td>
+        <td><input type="text" data-f="dated" value="${day.dated||''}"></td>
+        <td><input type="text" data-f="nameId" value="${day.nameId||''}"></td>
+        <td class="total-col dep-total">${fmt(t.depositTotal)}</td>
+        <td class="auto">${fmt(day.online)}</td>
+        <td class="auto">${fmt(day.neft)}</td>
+        <td><input type="text" data-f="neftDate" value="${day.neftDate||''}"></td>
+        <td class="bal-cell${mismatchClass}">${fmt(t.balance)}</td>
+        <td><input type="text" data-f="remarks" value="${day.remarks||''}"></td>
+      `;
+      body.appendChild(tr);
+    });
+
+    body.addEventListener('input', onCellInput);
+    renderFoot();
+  }
+
+  function onCellInput(e){
+    const input = e.target;
+    if(!input.dataset.f) return;
+    const tr = input.closest('tr');
+    const idx = Number(tr.dataset.idx);
+    const day = state.days[idx];
+    const field = input.dataset.f;
+    if(input.type === 'number'){
+      day[field] = Number(input.value) || 0;
+    } else {
+      day[field] = input.value;
+    }
+    const t = totalsForDay(day);
+    tr.querySelector('.dep-total').textContent = fmt(t.depositTotal);
+    const balCell = tr.querySelector('.bal-cell');
+    balCell.textContent = fmt(t.balance);
+    balCell.classList.toggle('mismatch', Math.abs(t.balance) > 0.5);
+    renderFoot();
+    renderSummary();
+  }
+
+  function renderFoot(){
+    const totals = {};
+    CATS.forEach(c=>totals[c]=0);
+    let feeTotal=0, cash=0, draftCheque=0, depositTotal=0, online=0, neft=0, balance=0;
+    state.days.forEach(day=>{
+      CATS.forEach(c=>totals[c]+=day[c]);
+      const t = totalsForDay(day);
+      feeTotal += t.feeTotal; cash+=day.cash; draftCheque+=day.draftCheque;
+      depositTotal += t.depositTotal; online += day.online; neft += day.neft; balance += t.balance;
+    });
+    const foot = $('#stmtFoot');
+    foot.innerHTML = `<tr>
+      <td class="date-col">TOTAL</td>
+      <td>${fmt(totals.loadSecurity)}</td>
+      <td>${fmt(totals.meterCost)}</td>
+      <td>${fmt(totals.installation)}</td>
+      <td>${fmt(totals.testing)}</td>
+      <td>${fmt(totals.processingFee)}</td>
+      <td>${fmt(totals.meterShifting)}</td>
+      <td>${fmt(totals.estimateSupervision)}</td>
+      <td>${fmt(feeTotal)}</td>
+      <td>${fmt(cash)}</td>
+      <td>${fmt(draftCheque)}</td>
+      <td></td><td></td><td></td>
+      <td>${fmt(depositTotal)}</td>
+      <td>${fmt(online)}</td>
+      <td>${fmt(neft)}</td>
+      <td></td>
+      <td>${fmt(balance)}</td>
+      <td></td>
+    </tr>`;
+  }
+
+  $('#agentCodes').addEventListener('input', ()=>{
+    if(!state.days.length) return;
+    computeOnlineNeft();
+    renderTable();
+    renderSummary();
+  });
+
+  // ---------- export ----------
+  $('#downloadBtn').addEventListener('click', exportWorkbook);
+
+  function colLetter(n){
+    let s='';
+    while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); }
+    return s;
+  }
+
+  async function exportWorkbook(){
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Format', {views:[{state:'frozen', ySplit:4, xSplit:1}]});
+
+    const headerFont = {bold:true, color:{argb:'FFFFFFFF'}, size:10};
+    const headerFill = {type:'pattern', pattern:'solid', fgColor:{argb:'FF0F4C5C'}};
+    const titleFont = {bold:true, size:14, color:{argb:'FF0A3540'}};
+    const thin = {style:'thin', color:{argb:'FFBFC9CE'}};
+    const border = {top:thin,left:thin,right:thin,bottom:thin};
+    const centerWrap = {vertical:'middle', horizontal:'center', wrapText:true};
+
+    const colCount = 20; // A..T
+
+    // Row1: title
+    ws.mergeCells(1,1,1,colCount);
+    const titleCell = ws.getCell(1,1);
+    titleCell.value = 'DEPOSIT WORK STATEMENT';
+    titleCell.font = titleFont;
+    titleCell.alignment = {horizontal:'center'};
+
+    // Row2: ESD name / month
+    ws.mergeCells(2,1,2,10);
+    ws.mergeCells(2,11,2,colCount);
+    const esdCell = ws.getCell(2,1);
+    esdCell.value = 'Name of ESD- AESD:  ' + ($('#esdName').value || '');
+    esdCell.font = {bold:true, size:11};
+    const monthCell = ws.getCell(2,11);
+    monthCell.value = 'For the Month….. ' + ($('#stmtMonth').value || '');
+    monthCell.font = {bold:true, size:11};
+    monthCell.alignment = {horizontal:'right'};
+
+    // Row3/4: headers
+    const headers1 = ['DATE','Load Security','METER COST','Service Connection\n(Installation)',
+      'METER/TRANSFORMER\nTESTING FEES','Processing Fee\n(Change process & NSC)',
+      'Mtr. Shifting/ Re-fixing/\nRemoving/Meter Seal Cost','Service Connection\n(Estimate & Supervision Amount)',
+      'TOTAL', null,null,null,null,null,null, 'Online into\nCircle A/c',
+      'NEFT/RTGS\nDIRECTLY TO CIRCLE','Date of\nNEFT/RTGS to Circle','Balance\nin Hand','Remarks'];
+    ws.mergeCells(3,10,3,15); // Deposits into DW A/C, BEC spans J..O
+    ws.getCell(3,10).value = 'Deposits into DW A/C, BEC';
+    const singleRowCols = [1,2,3,4,5,6,7,8,9,16,17,18,19,20];
+    singleRowCols.forEach(c=>{
+      ws.mergeCells(3,c,4,c);
+      ws.getCell(3,c).value = headers1[c-1];
+    });
+
+    const subHeaders = {10:'Cash',11:'Draft/\nCheque',12:'Chq No./\nDraft No.',13:'Dated',14:"Name & Id\nof Cons",15:'Total'};
+    Object.keys(subHeaders).forEach(c=>{
+      ws.getCell(4,c).value = subHeaders[c];
+    });
+
+    for(let r=3;r<=4;r++){
+      for(let c=1;c<=colCount;c++){
+        const cell = ws.getCell(r,c);
+        cell.font = headerFont;
+        cell.fill = headerFill;
+        cell.alignment = centerWrap;
+        cell.border = border;
+      }
+    }
+
+    // Row5: opening balance
+    ws.mergeCells(5,1,5,18);
+    ws.getCell(5,1).value = 'Opening Balance in Hand';
+    ws.getCell(5,1).font = {italic:true, size:10};
+    ws.getCell(5,19).value = Number($('#openingBal').value) || 0;
+    ws.getCell(5,19).font = {bold:true};
+    ws.getCell(5,19).numFmt = '#,##0';
+    for(let c=1;c<=colCount;c++){ ws.getCell(5,c).border = border; }
+
+    // Data rows
+    const numFmt = '#,##0';
+    const firstDataRow = 6;
+    let r = firstDataRow;
+
+    state.days.forEach(day=>{
+      // B..H: raw category amounts. I (TOTAL) and O (deposit total) are formulas for this row.
+      // S (balance in hand) is a running balance: previous row's balance + today's total - today's remittances.
+      const rowVals = [
+        [1, dateStr(day.date), 'text'],
+        [2, day.loadSecurity, 'num'], [3, day.meterCost, 'num'], [4, day.installation, 'num'],
+        [5, day.testing, 'num'], [6, day.processingFee, 'num'], [7, day.meterShifting, 'num'],
+        [8, day.estimateSupervision, 'num'],
+        [9, { formula: `SUM(B${r}:H${r})` }, 'formula'],
+        [10, day.cash||null, 'num'], [11, day.draftCheque||null, 'num'],
+        [12, day.chqNo||null, 'text'], [13, day.dated||null, 'text'], [14, day.nameId||null, 'text'],
+        [15, { formula: `SUM(J${r}:K${r})` }, 'formula'],
+        [16, day.online, 'num'], [17, day.neft, 'num'],
+        [18, day.neftDate||null, 'text'],
+        [19, { formula: `S${r-1}+I${r}-O${r}-P${r}-Q${r}` }, 'formula'],
+        [20, day.remarks||null, 'text'],
+      ];
+      rowVals.forEach(([col, v, kind])=>{
+        const cell = ws.getCell(r, col);
+        cell.value = v;
+        cell.border = border;
+        cell.font = {size:10};
+        if(kind==='num' || kind==='formula'){ cell.numFmt = numFmt; cell.alignment={horizontal:'right'}; }
+        if(kind==='text' && col===1){ cell.font = {size:10, bold:true}; }
+      });
+      r++;
+    });
+    const lastDataRow = r-1;
+
+    // Totals row - every figure is a live SUM() formula over the data rows above.
+    // Balance in Hand is not summed - it shows the running closing balance (last row's S cell).
+    const totalRow = r;
+    ws.getCell(totalRow,1).value = 'TOTAL';
+    const sumCols = [2,3,4,5,6,7,8,9,10,11,15,16,17]; // B,C,D,E,F,G,H,I,J,K,O,P,Q
+    sumCols.forEach(col=>{
+      const L = colLetter(col);
+      ws.getCell(totalRow,col).value = { formula: `SUM(${L}${firstDataRow}:${L}${lastDataRow})` };
+    });
+    ws.getCell(totalRow,19).value = { formula: `S${lastDataRow}` }; // closing balance
+    for(let c=1;c<=colCount;c++){
+      const cell = ws.getCell(totalRow,c);
+      cell.border = border;
+      cell.font = {bold:true, size:10};
+      cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FFE9EDF1'}};
+      if(typeof cell.value === 'object' || typeof cell.value === 'number') cell.numFmt = numFmt;
+    }
+    r++;
+
+    // column widths
+    const widths = [13,10,10,12,11,12,14,13,10, 8,9,10,9,12,9, 10,10,10,9,16];
+    widths.forEach((w,i)=>{ ws.getColumn(i+1).width = w; });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const monthLabel = ($('#stmtMonth').value || 'statement').replace(/[\/\\:*?"<>|]/g,'-');
+    a.href = url;
+    a.download = `DW_Statement_${monthLabel}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+})();
+</script>
+
 </body>
 </html>
