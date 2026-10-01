@@ -373,18 +373,23 @@ body{ margin:0; }
           <input type="number" id="fOpening" value="0">
         </div>
         <div class="field">
-          <label>Cash-deposit collector IDs</label>
-          <input type="text" id="fCashIds" value="40003813, 40003144, 40014521">
-          <span class="hint">comma-separated collector IDs whose MIS collection goes into Cash Deposit to Bank</span>
+          <label>Cash-agent ID prefix</label>
+          <input type="text" id="fCashPrefix" value="400">
+          <span class="hint">MIS Collector IDs starting with this are cash agents — excluded from Easy Pay (their collection goes to the manual Cash Deposit column)</span>
         </div>
         <div class="field">
           <label>Online collector ID</label>
           <input type="text" id="fOnlineId" value="ONLINE">
         </div>
         <div class="field" style="grid-column:1/-1;">
-          <label>Headwise bill heads added to Cash Deposit / Total Collection</label>
+          <label>MIS tag for Online / Easy Pay split</label>
+          <input type="text" id="fOnlineEasyTag" value="DISCONNECTION RECONNECTION CHARGE">
+          <span class="hint">Only MIS Daily Collection rows tagged with this (in the column right after Collector Id) are split into Online / Easy Pay, date-wise</span>
+        </div>
+        <div class="field" style="grid-column:1/-1;">
+          <label>Bill heads counted in Total Collection</label>
           <input type="text" id="fDisconnHeads" value="DISCONNECTION RECONNECTION CHARGE, NEW SERVICE CONNECTION DISCONNECTION CHARGE">
-          <span class="hint">comma-separated Bill Head values from the headwise report</span>
+          <span class="hint">comma-separated — matched against both the MIS tag column and the Headwise Bill Head column, all collector/received-by IDs included</span>
         </div>
       </div>
     </details>
@@ -664,6 +669,9 @@ function parseMis(rows){
     if(!h) return;
     amountIdxs.push(i);
   });
+  const tagIdx = header.length; // some exports carry an extra, unnamed column right after
+                                 // Collector Id with a bill-head-like tag (e.g. "DISCONNECTION
+                                 // RECONNECTION CHARGE") — it sits beyond the named headers.
   const out = [];
   for(let r=1;r<rows.length;r++){
     const row = rows[r];
@@ -676,7 +684,8 @@ function parseMis(rows){
       if(!isNaN(v)) total += v;
     });
     const collectorId = String(row[collectorIdx]??'').trim();
-    out.push({date, collectorId, total});
+    const tag = String(row[tagIdx]??'').trim();
+    out.push({date, collectorId, total, tag});
   }
   return out;
 }
@@ -769,39 +778,42 @@ function computeStatement(){
   const year = parseInt(document.getElementById('fYear').value,10);
   const subdiv = document.getElementById('fSubdiv').value.trim();
   const opening = parseFloat(document.getElementById('fOpening').value) || 0;
-  const cashIds = document.getElementById('fCashIds').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const cashPrefix = document.getElementById('fCashPrefix').value.trim().toUpperCase();
   const onlineId = document.getElementById('fOnlineId').value.trim();
-  const disconnHeads = document.getElementById('fDisconnHeads').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const onlineEasyTag = document.getElementById('fOnlineEasyTag').value.trim().toUpperCase();
+  const disconnHeads = document.getElementById('fDisconnHeads').value.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
 
   const numDays = daysInMonth(year, month);
 
   const misMonth = misRows.filter(r=>r.date.y===year && r.date.m===month);
-  const hwMonth = hwRows.filter(r=>r.date.y===year && r.date.m===month && disconnHeads.includes(r.billHead));
+  const hwMonth = hwRows.filter(r=>r.date.y===year && r.date.m===month);
+
+  // Only MIS rows tagged with the Online/EasyPay split tag feed the day-wise Online / Easy Pay columns.
+  const misTagged = misMonth.filter(r=>r.tag.toUpperCase()===onlineEasyTag);
 
   const dayRows = [];
   for(let d=1; d<=numDays; d++){
     const key = year+'-'+String(month).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    const misDay = misMonth.filter(r=>isoDate(r.date)===key);
-    const misTotal = misDay.reduce((s,r)=>s+r.total,0);
-    const cashMis = misDay.filter(r=>cashIds.includes(r.collectorId)).reduce((s,r)=>s+r.total,0);
-    const onlineMis = misDay.filter(r=>r.collectorId.toUpperCase()===onlineId.toUpperCase()).reduce((s,r)=>s+r.total,0);
-    const easypay = misTotal - cashMis - onlineMis;
-    const hwDay = hwMonth.filter(r=>isoDate(r.date)===key).reduce((s,r)=>s+r.amount,0);
-    const cash = cashMis + hwDay;
-    dayRows.push({sl:d, cash, online:onlineMis, easypay});
+    const misDay = misTagged.filter(r=>isoDate(r.date)===key);
+    const onlineAmt = misDay.filter(r=>r.collectorId.toUpperCase()===onlineId.toUpperCase()).reduce((s,r)=>s+r.total,0);
+    const easypayAmt = misDay.filter(r=>{
+      const cid = r.collectorId.toUpperCase();
+      return cid!==onlineId.toUpperCase() && !cid.startsWith(cashPrefix);
+    }).reduce((s,r)=>s+r.total,0);
+    dayRows.push({sl:d, cash:0, online:onlineAmt, easypay:easypayAmt});
   }
 
-  const totalCash = dayRows.reduce((s,r)=>s+r.cash,0);
+  const totalCash = 0; // Cash Deposit to Bank is left blank for manual entry
   const totalOnline = dayRows.reduce((s,r)=>s+r.online,0);
   const totalEasypay = dayRows.reduce((s,r)=>s+r.easypay,0);
-  const misAllTotal = misMonth.reduce((s,r)=>s+r.total,0);
-  const hwAllTotal = hwMonth.reduce((s,r)=>s+r.amount,0);
-  const totalCollection = misAllTotal + hwAllTotal;
+  const misDisconnTotal = misMonth.filter(r=>disconnHeads.includes(r.tag.toUpperCase())).reduce((s,r)=>s+r.total,0);
+  const hwDisconnTotal = hwMonth.filter(r=>disconnHeads.includes(r.billHead.toUpperCase())).reduce((s,r)=>s+r.amount,0);
+  const totalCollection = misDisconnTotal + hwDisconnTotal;
   const totalDeposit = totalCash + totalOnline + totalEasypay;
   const closing = opening + totalCollection - totalDeposit;
 
   return {
-    month, year, subdiv, opening, cashIds, onlineId, disconnHeads, numDays,
+    month, year, subdiv, opening, onlineId, disconnHeads, numDays,
     dayRows, totalCash, totalOnline, totalEasypay, totalCollection, totalDeposit, closing
   };
 }
