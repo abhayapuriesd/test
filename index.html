@@ -669,9 +669,10 @@ function parseMis(rows){
     if(!h) return;
     amountIdxs.push(i);
   });
-  const tagIdx = header.length; // some exports carry an extra, unnamed column right after
-                                 // Collector Id with a bill-head-like tag (e.g. "DISCONNECTION
-                                 // RECONNECTION CHARGE") — it sits beyond the named headers.
+  // Some exports carry an extra, unnamed column right after Collector Id holding a
+  // bill-head-like tag (e.g. "DISCONNECTION RECONNECTION CHARGE"). SheetJS pads the header
+  // row to the widest data row, so header.length is unreliable — anchor on Collector Id instead.
+  const tagIdx = collectorIdx >= 0 ? collectorIdx + 1 : -1;
   const out = [];
   for(let r=1;r<rows.length;r++){
     const row = rows[r];
@@ -684,7 +685,7 @@ function parseMis(rows){
       if(!isNaN(v)) total += v;
     });
     const collectorId = String(row[collectorIdx]??'').trim();
-    const tag = String(row[tagIdx]??'').trim();
+    const tag = tagIdx >= 0 ? String(row[tagIdx]??'').trim() : '';
     out.push({date, collectorId, total, tag});
   }
   return out;
