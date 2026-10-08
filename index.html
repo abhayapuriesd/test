@@ -147,7 +147,7 @@ const KEYS=['eC','eQ','spC','spQ','a','rcdc','m','mi','total','rev','rcA','dw','
 function render(rows){
   const g={};let h='';
   for(const r of rows){
-    KEYS.forEach(k=>g[k]=(g[k]||0)+r[k]);
+    new Set(KEYS).forEach(k=>g[k]=(g[k]||0)+r[k]);
     h+='<tr><td>'+r.date.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit',timeZone:'UTC'})+'</td>'+KEYS.map(k=>'<td>'+fmt(r[k])+'</td>').join('')+'</tr>';
   }
   h+='<tr class="gt"><td>TOTAL</td>'+KEYS.map(k=>'<td>'+fmt(g[k])+'</td>').join('')+'</tr>';
