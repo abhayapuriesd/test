@@ -145,7 +145,7 @@
     <div style="color:var(--muted); font-size:0.78rem; margin-top:6px;">
       "Temporary" = Temporary Energy Charge + Meter Cost entries of exactly ₹2,400 / ₹6,000 from the HeadWise report — kept aside, not part of any Collection/Deposite total.<br>
       "Total Collection (ID-wise)" = everything for Collector IDs <span id="idListLabel"></span> combined — every bill type from Daily Collection plus Smart Prepaid, but only Cash + Cheque payments. RTGS, Govt Adjustment, Board Adjustment and Tower Adjustment are not counted.<br>
-      "Balance" is calculated on <b>all</b> Collector IDs starting with "<span id="prefixLabel"></span>", whether or not they are in the include box: (Cash + Cheque of those IDs) − (Cash of those IDs), from Daily Collection and Smart Prepaid (RTGS / adjustments excluded).
+      "Balance" = (Cash + Cheque of <b>all</b> Collector IDs starting with "<span id="prefixLabel"></span>", from Daily Collection and Smart Prepaid; RTGS / adjustments excluded) − Total Collection (ID-wise). Shows how much of the 400-series collection is not covered by the IDs in the include box; 0 means everything matches.
     </div>
 
     <footer>
@@ -431,8 +431,8 @@ async function processFiles() {
       const rawColl = rawTotal[key] || 0;
       const cashPfx = cashPrefixed[key] || 0;
       const tot400 = total400[key] || 0;
-      // Balance = (cash+cheque of ALL 400* IDs) − (cash of ALL 400* IDs); not affected by the include box
-      const balance = tot400 - cashPfx;
+      // Balance = (cash+cheque of ALL 400* IDs) − Total Collection (ID-wise of the include box)
+      const balance = tot400 - rawColl;
       rows.push({ date: new Date(cur), eCash, eCheque, spC, spCh, a, rcdc, mc, misc, total, revAc, rcdcAc, dwAc, excluded, rawColl, tot400, cashPfx, balance });
       cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
     }
@@ -649,8 +649,8 @@ async function downloadExcel() {
       }
       excelRow.getCell(15).value = Math.round(row.excluded || 0);
       excelRow.getCell(16).value = Math.round(row.rawColl || 0);
-      // Balance = (cash+cheque of all 400* IDs) − (cash of all 400* IDs)
-      excelRow.getCell(17).value = { formula: `${Math.round(row.tot400 || 0)}-${Math.round(row.cashPfx || 0)}` };
+      // Balance = (cash+cheque of all 400* IDs) − Total Collection (ID-wise)
+      excelRow.getCell(17).value = { formula: `${Math.round(row.tot400 || 0)}-P${r}` };
 
       for (let c = 1; c <= totalCols; c++) {
         const cell = excelRow.getCell(c);
