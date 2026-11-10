@@ -144,7 +144,7 @@
     </div>
     <div style="color:var(--muted); font-size:0.78rem; margin-top:6px;">
       "Temporary" = Temporary Energy Charge + Meter Cost entries of exactly ₹2,400 / ₹6,000 from the HeadWise report — kept aside, not part of any Collection/Deposite total.<br>
-      "Total Collection (ID-wise)" = everything for Collector IDs <span id="idListLabel"></span> combined — every bill type from Daily Collection plus every payment mode from Smart Prepaid. Nothing excluded.<br>
+      "Total Collection (ID-wise)" = everything for Collector IDs <span id="idListLabel"></span> combined — every bill type from Daily Collection plus Smart Prepaid, but only Cash + Cheque payments. RTGS, Govt Adjustment, Board Adjustment and Tower Adjustment are not counted.<br>
       "Balance" = Total Collection (ID-wise) − Cash Collection of <b>all</b> Collector IDs starting with "<span id="prefixLabel"></span>" (Daily Collection cash + Smart Prepaid cash/cash_os).
     </div>
 
@@ -278,7 +278,7 @@ async function processFiles() {
       }
 
       if (!targetIds.has(cid)) continue;
-      rawTotal[key] = (rawTotal[key] || 0) + cash + cheque + rtgs + govtAdj + boardAdj + towerAdj;
+      rawTotal[key] = (rawTotal[key] || 0) + cash + cheque; // RTGS / Govt / Board / Tower Adjustment excluded
       if (billType === 'ENERGY BILL') {
         energy[key] = energy[key] || { cash: 0, cheque: 0 };
         energy[key].cash += cash;
@@ -362,7 +362,9 @@ async function processFiles() {
 
           if (!targetIds.has(cid)) continue;
           spRowCount++;
-          rawTotal[key] = (rawTotal[key] || 0) + amount;
+          if (mode === 'cash' || mode === 'cash_os' || mode === 'cheque') {
+            rawTotal[key] = (rawTotal[key] || 0) + amount; // only cash/cheque; other modes excluded
+          }
           if (mode === 'cash' || mode === 'cash_os') {
             spCash[key] = (spCash[key] || 0) + amount;
           } else if (mode === 'cheque') {
