@@ -72,7 +72,7 @@
       <input type="text" id="collectorIds" value="40003813, 40003144">
     </div>
     <div class="id-row">
-      <label>Balance ke liye: un sabhi IDs ka cash jo is number se start hoti hain:</label>
+      <label>For Balance: include all Collector IDs that start with:</label>
       <input type="text" id="cashPrefix" class="short" value="400">
     </div>
 
@@ -763,7 +763,7 @@ async function downloadExcel() {
     document.body.removeChild(link);
   } catch (err) {
     console.error(err);
-    alert('Excel banate waqt error aayi: ' + err.message);
+    alert('Error while building the Excel file: ' + err.message);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '⬇ Download Collection Report'; }
   }
