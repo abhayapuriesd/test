@@ -145,7 +145,7 @@
     <div style="color:var(--muted); font-size:0.78rem; margin-top:6px;">
       "Temporary" = Temporary Energy Charge + Meter Cost entries of exactly ₹2,400 / ₹6,000 from the HeadWise report — kept aside, not part of any Collection/Deposite total.<br>
       "Total Collection (ID-wise)" = everything for Collector IDs <span id="idListLabel"></span> combined — every bill type from Daily Collection plus Smart Prepaid, but only Cash + Cheque payments. RTGS, Govt Adjustment, Board Adjustment and Tower Adjustment are not counted.<br>
-      "Balance" = Total Collection (ID-wise) − Cash Collection of <b>all</b> Collector IDs starting with "<span id="prefixLabel"></span>" (Daily Collection cash + Smart Prepaid cash/cash_os).
+      "Balance" is calculated on <b>all</b> Collector IDs starting with "<span id="prefixLabel"></span>", whether or not they are in the include box: (Cash + Cheque of those IDs) − (Cash of those IDs), from Daily Collection and Smart Prepaid (RTGS / adjustments excluded).
     </div>
 
     <footer>
@@ -251,6 +251,7 @@ async function processFiles() {
     const assess = {};
     const rcdcDaily = {};
     const rawTotal = {};   // everything for the target IDs
+    const total400 = {};     // date -> cash+cheque of ALL IDs starting with the prefix (independent of the include box)
     const cashPrefixed = {}; // date -> CASH of ALL IDs starting with cashPrefix (Daily cash + Smart Prepaid cash/cash_os)
 
     // ---- 1. Daily Collection CSV ----
@@ -275,6 +276,7 @@ async function processFiles() {
       // Cash of every ID that starts with the prefix (400...), regardless of bill type.
       if (cid.startsWith(cashPrefix)) {
         cashPrefixed[key] = (cashPrefixed[key] || 0) + cash;
+        total400[key] = (total400[key] || 0) + cash + cheque;
       }
 
       if (!targetIds.has(cid)) continue;
@@ -359,6 +361,9 @@ async function processFiles() {
           if (cid.startsWith(cashPrefix) && (mode === 'cash' || mode === 'cash_os')) {
             cashPrefixed[key] = (cashPrefixed[key] || 0) + amount;
           }
+          if (cid.startsWith(cashPrefix) && (mode === 'cash' || mode === 'cash_os' || mode === 'cheque')) {
+            total400[key] = (total400[key] || 0) + amount;
+          }
 
           if (!targetIds.has(cid)) continue;
           spRowCount++;
@@ -381,7 +386,7 @@ async function processFiles() {
       ...Object.keys(energy), ...Object.keys(assess), ...Object.keys(rcdcDaily),
       ...Object.keys(meterCost), ...Object.keys(rcdcHeadwise), ...Object.keys(miscHeadwise),
       ...Object.keys(spCash), ...Object.keys(spCheque), ...Object.keys(excludedHeadwise),
-      ...Object.keys(rawTotal)
+      ...Object.keys(rawTotal), ...Object.keys(total400), ...Object.keys(cashPrefixed)
     ]);
     if (allKeys.size === 0) {
       setStatus('msg', 'No matching data found for the given Collector IDs. Please check the IDs and files.', true);
@@ -425,9 +430,10 @@ async function processFiles() {
       const excluded = excludedHeadwise[key] || 0;
       const rawColl = rawTotal[key] || 0;
       const cashPfx = cashPrefixed[key] || 0;
-      // Balance = Total Collection (ID-wise) − cash of all IDs starting with 400
-      const balance = rawColl - cashPfx;
-      rows.push({ date: new Date(cur), eCash, eCheque, spC, spCh, a, rcdc, mc, misc, total, revAc, rcdcAc, dwAc, excluded, rawColl, cashPfx, balance });
+      const tot400 = total400[key] || 0;
+      // Balance = (cash+cheque of ALL 400* IDs) − (cash of ALL 400* IDs); not affected by the include box
+      const balance = tot400 - cashPfx;
+      rows.push({ date: new Date(cur), eCash, eCheque, spC, spCh, a, rcdc, mc, misc, total, revAc, rcdcAc, dwAc, excluded, rawColl, tot400, cashPfx, balance });
       cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
     }
 
@@ -452,7 +458,7 @@ function renderResults(rows) {
 
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = '';
-  const g = { eCash:0, eCheque:0, spC:0, spCh:0, a:0, rcdc:0, mc:0, misc:0, total:0, revAc:0, rcdcAc:0, dwAc:0, excluded:0, rawColl:0, cashPfx:0, balance:0 };
+  const g = { eCash:0, eCheque:0, spC:0, spCh:0, a:0, rcdc:0, mc:0, misc:0, total:0, revAc:0, rcdcAc:0, dwAc:0, excluded:0, rawColl:0, tot400:0, cashPfx:0, balance:0 };
 
   const cells = r => `
       <td class="num">${fmt(r.eCash)}</td>
@@ -493,6 +499,7 @@ function renderResults(rows) {
     <div class="card"><div class="label">Meter Cost</div><div class="value">₹${fmt(g.mc)}</div></div>
     <div class="card"><div class="label">Grand Total</div><div class="value">₹${fmt(g.total)}</div></div>
     <div class="card"><div class="label">Total Collection (ID-wise)</div><div class="value">₹${fmt(g.rawColl)}</div></div>
+    <div class="card"><div class="label">Cash+Cheque of ${getCashPrefix()}* IDs</div><div class="value">₹${fmt(g.tot400)}</div></div>
     <div class="card"><div class="label">Cash of ${getCashPrefix()}* IDs</div><div class="value">₹${fmt(g.cashPfx)}</div></div>
     <div class="card"><div class="label">Balance</div><div class="value">₹${fmt(g.balance)}</div></div>`;
 
@@ -642,8 +649,8 @@ async function downloadExcel() {
       }
       excelRow.getCell(15).value = Math.round(row.excluded || 0);
       excelRow.getCell(16).value = Math.round(row.rawColl || 0);
-      // Balance = Total Collection (ID-wise) − cash of all IDs starting with 400
-      excelRow.getCell(17).value = { formula: `P${r}-${Math.round(row.cashPfx || 0)}` };
+      // Balance = (cash+cheque of all 400* IDs) − (cash of all 400* IDs)
+      excelRow.getCell(17).value = { formula: `${Math.round(row.tot400 || 0)}-${Math.round(row.cashPfx || 0)}` };
 
       for (let c = 1; c <= totalCols; c++) {
         const cell = excelRow.getCell(c);
